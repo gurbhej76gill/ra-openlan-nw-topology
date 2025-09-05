@@ -2,315 +2,388 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"sort"
-	"sync"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
-	"github.com/router-architects/network-topology/internal/config"
-	"github.com/router-architects/network-topology/internal/models"
-	"github.com/router-architects/network-topology/internal/repositories"
-	"github.com/router-architects/network-topology/internal/utils"
+	"github.com/router-architects/network-topology-service/internal/logger"
+	"github.com/router-architects/network-topology-service/internal/models"
+	"github.com/router-architects/network-topology-service/internal/repositories"
 )
 
+// Service interface
 type TopologyService interface {
-	Build(ctx context.Context, groupID string, at time.Time) (models.TopologyResponse, error)
+	BuildTopology(ctx context.Context, boardID string, at *time.Time, window, drift time.Duration) (models.Topology, error)
 }
 
 type topologyService struct {
 	repo repositories.TopologyRepository
-	cfg  config.Config
+	log  logger.Logger
 }
 
-func NewTopologyService(r repositories.TopologyRepository, cfg config.Config) TopologyService {
-	return &topologyService{repo: r, cfg: cfg}
+func NewTopologyService(repo repositories.TopologyRepository, l logger.Logger) TopologyService {
+	return &topologyService{repo: repo, log: l}
 }
 
-func (s *topologyService) Build(ctx context.Context, groupID string, at time.Time) (models.TopologyResponse, error) {
-	windowStart, windowEnd := utils.RollingWindow(at, s.cfg.TopologyWindow, s.cfg.DriftAllowance)
+// ---------- Input JSON structures (ssid_data, device_info) ----------
+type ssidFace struct {
+	Associations []struct {
+		Connected int    `json:"connected"`
+		Inactive  int    `json:"inactive"`
+		RSSI      int    `json:"rssi"`
+		Station   string `json:"station"`
+		RxRate    struct {
+			Bitrate int `json:"bitrate"`
+			Chwidth int `json:"chwidth"`
+		} `json:"rx_rate"`
+		TxRate struct {
+			Bitrate int `json:"bitrate"`
+			Chwidth int `json:"chwidth"`
+		} `json:"tx_rate"`
+	} `json:"associations"`
+	Band    int    `json:"band"`
+	BSSID   string `json:"bssid"`
+	Channel int    `json:"channel"`
+	Mode    string `json:"mode"` // "ap" | "mesh"
+	SSID    string `json:"ssid"`
+}
 
-	logrus.WithFields(logrus.Fields{
-		"groupId": groupID, "start": windowStart, "end": windowEnd,
-	}).Debug("fetching latest rows in window")
+type deviceInfo struct {
+	DeviceType   string `json:"deviceType"`
+	SerialNumber string `json:"serialNumber"`
+}
 
-	rows, err := s.repo.FetchLatestRows(ctx, groupID, windowStart, windowEnd)
-	if err != nil {
-		return models.TopologyResponse{}, fmt.Errorf("repo.FetchLatestRows: %w", err)
-	}
+// ---------- Internal helpers ----------
+type rowParsed struct {
+	ts     int64
+	serial string
+	faces  []ssidFace
+}
 
-	type faceKey struct {
-		serial string
-		bssid  string
-	}
+type faceKey struct {
+	serial string
+	bssid  string
+	mode   string // ap | mesh
+}
 
-	// Intermediate maps guarded by RW locks for safe concurrent fill.
-	facesBySerial := make(map[string][]models.Face)
-	clientsByStation := make(map[string][]struct {
-		serial    string
-		faceBSSID string
-		ts        time.Time
-		rssi      int
-	})
-	knownMeshBSSIDs := make(map[string]string) // bssid -> serial
-	muFaces := sync.RWMutex{}
-	muClients := sync.RWMutex{}
-	muMesh := sync.RWMutex{}
+type faceOut struct {
+	face    models.Face
+	ts      int64
+	clients []models.FaceClient
+}
 
-	wg := sync.WaitGroup{}
-	wg.Add(len(rows))
+// main method
+func (s *topologyService) BuildTopology(ctx context.Context, boardID string, at *time.Time, window, drift time.Duration) (models.Topology, error) {
+	log := s.log.WithFields(logger.Fields{"boardId": boardID})
 
-	for i := range rows {
-		rr := rows[i]
-		go func() {
-			defer wg.Done()
-			parsedFaces := parseSSIDData(rr, rr.timestamp)
-
-			// Fill facesBySerial
-			muFaces.Lock()
-			facesBySerial[rr.serialNumber] = append(facesBySerial[rr.serialNumber], parsedFaces...)
-			muFaces.Unlock()
-
-			// Record mesh bssids
-			muMesh.Lock()
-			for _, f := range parsedFaces {
-				if f.Mode == "mesh" && f.BSSID != "" {
-					knownMeshBSSIDs[f.BSSID] = rr.serialNumber
-				}
-			}
-			muMesh.Unlock()
-
-			// Fill clientsByStation
-			muClients.Lock()
-			for _, f := range parsedFaces {
-				for _, c := range f.Clients {
-					clientsByStation[c.Station] = append(clientsByStation[c.Station], struct {
-						serial    string
-						faceBSSID string
-						ts        time.Time
-						rssi      int
-					}{rr.serialNumber, f.BSSID, rr.timestamp, c.RSSI})
-				}
-			}
-			muClients.Unlock()
-		}()
-	}
-	wg.Wait()
-
-	// Deduplicate clients: choose latest ts, then highest rssi.
-	finalClientsByBSSID := make(map[string]map[string]struct{})
-	for station, assoc := range clientsByStation {
-		sort.Slice(assoc, func(i, j int) bool {
-			if assoc[i].ts.Equal(assoc[j].ts) {
-				return assoc[i].rssi > assoc[j].rssi
-			}
-			return assoc[i].ts.After(assoc[j].ts)
-		})
-		chosen := assoc[0]
-		if _, ok := finalClientsByBSSID[chosen.faceBSSID]; !ok {
-			finalClientsByBSSID[chosen.faceBSSID] = make(map[string]struct{})
-		}
-		finalClientsByBSSID[chosen.faceBSSID][station] = struct{}{}
-	}
-
-	// Filter face clients to only chosen stations
-	for serial, faces := range facesBySerial {
-		for i := range faces {
-			f := &faces[i]
-			if set, ok := finalClientsByBSSID[f.BSSID]; ok {
-				filtered := make([]models.Client, 0, len(f.Clients))
-				for _, c := range f.Clients {
-					if _, keep := set[c.Station]; keep {
-						filtered = append(filtered, c)
-					}
-				}
-				f.Clients = filtered
-			} else {
-				f.Clients = nil
-			}
-		}
-		facesBySerial[serial] = faces
-	}
-
-	// Construct mesh edges
-	meshEdges := make([]models.MeshEdge, 0, 16)
-	for serial, faces := range facesBySerial {
-		for _, f := range faces {
-			if f.Mode != "mesh" {
-				continue
-			}
-			for _, c := range f.Clients {
-				if peerSerial, ok := knownMeshBSSIDs[c.Station]; ok {
-					meshEdges = append(meshEdges, models.MeshEdge{
-						From: serial, To: peerSerial,
-						SSID: f.SSID, Band: f.Band, Channel: f.Channel,
-					})
-				}
-			}
-		}
-	}
-
-	// Build nodes
-	nodes := make([]models.TopologyNode, 0, len(facesBySerial))
-	for serial, faces := range facesBySerial {
-		var aps, mesh []models.Face
-		for _, f := range faces {
-			if f.Mode == "mesh" {
-				mesh = append(mesh, f)
-			} else {
-				aps = append(aps, f)
-			}
-		}
-		nodes = append(nodes, models.TopologyNode{
-			Serial: serial,
-			APs:    aps,
-			Mesh:   mesh,
-		})
-	}
-
+	// 1) Resolve effective "at"
+	var atTs int64
 	mode := "latest"
-	if !at.IsZero() && at.Before(time.Now().UTC().Add(-1*time.Minute)) {
-		mode = "historical"
-	}
-
-	var resp models.TopologyResponse
-	resp.GroupID = groupID
-	resp.Timestamp = at.UTC().Format(time.RFC3339)
-	resp.Meta = struct {
-		Mode                  string    `json:"mode"`
-		WindowStart           time.Time `json:"window_start"`
-		WindowEnd             time.Time `json:"window_end"`
-		DriftAllowanceSeconds int       `json:"drift_allowance_seconds"`
-		ServedFrom            string    `json:"served_from"`
-	}{
-		Mode:                  mode,
-		WindowStart:           windowStart,
-		WindowEnd:             windowEnd,
-		DriftAllowanceSeconds: int(s.cfg.DriftAllowance / time.Second),
-		ServedFrom:            "db",
-	}
-	resp.Nodes = nodes
-	resp.Edges.Wired = []any{}
-	resp.Edges.Mesh = meshEdges
-	resp.External = []any{}
-
-	return resp, nil
-}
-
-// parseSSIDData converts the flexible ssid_data map to faces and clients.
-// We keep it defensive: tolerate missing/variant fields.
-func parseSSIDData(rr repositories.RowLike, ts time.Time) []models.Face {
-	// Expecting structure similar to doc:
-	// faces: [] with bssid, ssid, band, channel, mode, clients: []
-	// Since repositories.row is unexported, expose a minimal RowLike interface to decouple.
-	type clientIn struct {
-		Station  string `json:"station"`
-		RSSI     int    `json:"rssi"`
-		Conn     int    `json:"connected"`
-		Inactive int    `json:"inactive"`
-		RxBR     int    `json:"rx_rate_bitrate"`
-		TxBR     int    `json:"tx_rate_bitrate"`
-		RxCW     int    `json:"rx_rate_chwidth"`
-	}
-	var faces []models.Face
-
-	raw := rr.SSID()
-	// Try common shapes:
-	// 1) {"faces":[{...}]}
-	// 2) {"aps":[{...}], "mesh":[{...}]}
-	// 3) {"interfaces":[{...}]}
-	// 4) Flat array: {"ssid_data":[{...}]}
-	// We will attempt to detect arrays in known keys; else if ssid_data itself is an array.
-
-	extractFaces := func(arr any, modeHint string) {
-		as, ok := arr.([]any)
-		if !ok {
-			return
+	if at == nil || at.IsZero() {
+		maxTs, err := s.repo.LatestTimestamp(ctx, boardID)
+		if err != nil || maxTs == 0 {
+			if err != nil {
+				log.WithError(err).Warn("no latest timestamp for board")
+			}
+			return s.emptyResult(boardID, 0, 0, 0, mode, drift), nil
 		}
-		for _, it := range as {
-			m, ok := it.(map[string]any)
-			if !ok {
+		atTs = maxTs
+	} else {
+		atTs = at.UTC().Unix()
+		mode = "at"
+	}
+
+	start := atTs - int64(window.Seconds()) - int64(drift.Seconds())
+	end := atTs
+
+	rows, err := s.repo.FetchTimepoints(ctx, boardID, start, end)
+	if err != nil {
+		log.WithError(err).Error("fetch timepoints failed")
+		return models.Topology{}, err
+	}
+	if len(rows) == 0 {
+		return s.emptyResult(boardID, atTs, start, end, mode, drift), nil
+	}
+
+	// 2) Parse rows newest->older, collect:
+	//    - device serial
+	//    - all faces (latest per serial+bssid+mode)
+	//    - known BSSID set & owner mapping (bssid -> serial)
+	parsed := make([]rowParsed, 0, len(rows))
+	bssidOwner := map[string]string{} // bssid -> serial
+	knownBSSID := map[string]struct{}{}
+
+	for _, r := range rows {
+		serial := strings.TrimSpace(r.Serial)
+		// prefer device_info.serialNumber if present
+		var di deviceInfo
+		if r.DeviceInfo != "" {
+			_ = json.Unmarshal([]byte(r.DeviceInfo), &di)
+			if di.SerialNumber != "" {
+				serial = di.SerialNumber
+			}
+		}
+		serial = strings.TrimSpace(serial)
+
+		var faces []ssidFace
+		if err := json.Unmarshal([]byte(r.SSIDData), &faces); err != nil {
+			log.WithError(err).WithField("rowID", r.ID).Warn("failed to parse ssid_data")
+			continue
+		}
+		parsed = append(parsed, rowParsed{ts: r.Timestamp, serial: serial, faces: faces})
+
+		for _, f := range faces {
+			b := normMAC(f.BSSID)
+			if b == "" {
 				continue
 			}
-			f := models.Face{
-				BSSID:     str(m["bssid"]),
-				SSID:      str(m["ssid"]),
-				Band:      str(m["band"]),
-				Channel:   intval(m["channel"]),
-				Mode:      firstNonEmpty(str(m["mode"]), modeHint),
-				Timestamp: ts,
+			knownBSSID[b] = struct{}{}
+			// Only set owner once (newest sample wins, rows are DESC)
+			if _, ok := bssidOwner[b]; !ok {
+				bssidOwner[b] = serial
+			}
+		}
+	}
+
+	// 3) First pass: decide the "latest" face record per (serial,bssid,mode)
+	//    Build faceOut map and per-device container
+	faceMap := map[faceKey]*faceOut{}
+	devMap := map[string]*models.Device{}
+
+	for _, rp := range parsed {
+		for _, f := range rp.faces {
+			b := normMAC(f.BSSID)
+			if b == "" {
+				continue
+			}
+			k := faceKey{serial: rp.serial, bssid: b, mode: strings.ToLower(strings.TrimSpace(f.Mode))}
+			if _, exists := faceMap[k]; exists {
+				continue // already captured newer one
+			}
+			// create device if needed
+			if _, ok := devMap[rp.serial]; !ok {
+				devMap[rp.serial] = &models.Device{
+					Serial: rp.serial,
+					APs:    []models.Face{},
+					Mesh:   []models.Face{},
+				}
+			}
+			fo := &faceOut{
+				face: models.Face{
+					BSSID:     b,
+					SSID:      f.SSID,
+					Band:      strconv.Itoa(f.Band),
+					Channel:   f.Channel,
+					Mode:      k.mode,
+					Clients:   nil, // fill later
+					Timestamp: "",  // fill later
+				},
+				ts:      rp.ts,
+				clients: nil,
+			}
+			faceMap[k] = fo
+			// append to device by mode (order finalized later by sort)
+			if k.mode == "ap" {
+				devMap[rp.serial].APs = append(devMap[rp.serial].APs, fo.face)
+			} else {
+				devMap[rp.serial].Mesh = append(devMap[rp.serial].Mesh, fo.face)
+			}
+		}
+	}
+
+	// 4) Second pass: for the exact row that created a face, collect clients
+	//    - AP faces: include associations whose station is NOT a known BSSID
+	//    - Mesh faces: include associations whose station IS a known BSSID (peer mesh BSSID)
+	//    Also stamp the per-face timestamp in Asia/Kolkata.
+	ist, _ := time.LoadLocation("Asia/Kolkata")
+	meshEdgeSet := map[string]models.MeshEdge{} // dedupe: from|to|ssid|band|channel
+
+	for _, rp := range parsed {
+		for _, f := range rp.faces {
+			b := normMAC(f.BSSID)
+			if b == "" {
+				continue
+			}
+			mode := strings.ToLower(strings.TrimSpace(f.Mode))
+			k := faceKey{serial: rp.serial, bssid: b, mode: mode}
+			fo, ok := faceMap[k]
+			if !ok {
+				continue // this face didn't win the "latest"
+			}
+			if fo.ts != rp.ts {
+				continue // only take clients from the exact latest row that selected this face
 			}
 
-			if cs, ok := m["clients"]; ok {
-				if arrc, ok := cs.([]any); ok {
-					for _, c := range arrc {
-						cm, ok := c.(map[string]any)
-						if !ok {
-							continue
+			// collect clients according to mode
+			var clients []models.FaceClient
+			for _, a := range f.Associations {
+				st := normMAC(a.Station)
+				if st == "" {
+					continue
+				}
+				if mode == "ap" {
+					// Exclude stations that are any known BSSID (AP or mesh); only end devices remain.
+					if _, isBSSID := knownBSSID[st]; isBSSID {
+						continue
+					}
+					clients = append(clients, models.FaceClient{
+						Station:       st,
+						RSSI:          a.RSSI,
+						Connected:     a.Connected,
+						Inactive:      a.Inactive,
+						RxRateBitrate: a.RxRate.Bitrate,
+						TxRateBitrate: a.TxRate.Bitrate,
+						RxRateChwidth: a.RxRate.Chwidth,
+					})
+				} else if mode == "mesh" {
+					// Include only if peer is a known BSSID -> build directed mesh edge serial->peerOwner
+					if _, isBSSID := knownBSSID[st]; !isBSSID {
+						continue
+					}
+					clients = append(clients, models.FaceClient{
+						Station:       st,
+						RSSI:          a.RSSI,
+						Connected:     a.Connected,
+						Inactive:      a.Inactive,
+						RxRateBitrate: a.RxRate.Bitrate,
+						TxRateBitrate: a.TxRate.Bitrate,
+						RxRateChwidth: a.RxRate.Chwidth,
+					})
+					// Directed mesh edge
+					if toSerial, ok := bssidOwner[st]; ok && toSerial != "" {
+						key := rp.serial + "|" + toSerial + "|" + f.SSID + "|" + strconv.Itoa(f.Band) + "|" + strconv.Itoa(f.Channel)
+						if _, seen := meshEdgeSet[key]; !seen {
+							meshEdgeSet[key] = models.MeshEdge{
+								From:    rp.serial,
+								To:      toSerial,
+								SSID:    f.SSID,
+								Band:    strconv.Itoa(f.Band),
+								Channel: f.Channel,
+							}
 						}
-						f.Clients = append(f.Clients, models.Client{
-							Station:       str(cm["station"]),
-							RSSI:          intval(cm["rssi"]),
-							Connected:     intval(cm["connected"]),
-							Inactive:      intval(cm["inactive"]),
-							RxRateBitrate: intval(cm["rx_rate_bitrate"]),
-							TxRateBitrate: intval(cm["tx_rate_bitrate"]),
-							RxRateChWidth: intval(cm["rx_rate_chwidth"]),
-						})
 					}
 				}
 			}
-			faces = append(faces, f)
+			// stamp timestamp in IST and set clients (nil => null)
+			fo.face.Timestamp = time.Unix(fo.ts, 0).In(ist).Format(time.RFC3339)
+			if len(clients) > 0 {
+				// attach slice pointer to make JSON "clients":[...]
+				cp := clients
+				fo.clients = clients
+				fo.face.Clients = &cp
+			} else {
+				// keep nil -> JSON null
+				fo.clients = nil
+				fo.face.Clients = nil
+			}
 		}
 	}
 
-	if v, ok := raw["faces"]; ok {
-		extractFaces(v, "")
-	}
-	if v, ok := raw["aps"]; ok {
-		extractFaces(v, "ap")
-	}
-	if v, ok := raw["mesh"]; ok {
-		extractFaces(v, "mesh")
-	}
-	if v, ok := raw["interfaces"]; ok && len(faces) == 0 {
-		extractFaces(v, "")
-	}
-	// if nothing yet, try if ssid_data itself is an array
-	if len(faces) == 0 {
-		extractFaces(raw["ssid_data"], "")
+	// 5) Move updated faces (with timestamp & clients) back into devices
+	//    (We reassign the slices because fo.face was a copy in step 3)
+	for serial, dev := range devMap {
+		// rebuild arrays with updated faces from faceMap
+		apFaces := dev.APs[:0]
+		for _, f := range dev.APs {
+			k := faceKey{serial: serial, bssid: f.BSSID, mode: "ap"}
+			if fo, ok := faceMap[k]; ok {
+				apFaces = append(apFaces, fo.face)
+			}
+		}
+		meshFaces := dev.Mesh[:0]
+		for _, f := range dev.Mesh {
+			k := faceKey{serial: serial, bssid: f.BSSID, mode: "mesh"}
+			if fo, ok := faceMap[k]; ok {
+				meshFaces = append(meshFaces, fo.face)
+			}
+		}
+		// sort faces for deterministic output (band asc, then bssid)
+		sort.Slice(apFaces, func(i, j int) bool {
+			if apFaces[i].Band == apFaces[j].Band {
+				return apFaces[i].BSSID < apFaces[j].BSSID
+			}
+			return apFaces[i].Band < apFaces[j].Band
+		})
+		sort.Slice(meshFaces, func(i, j int) bool {
+			if meshFaces[i].Band == meshFaces[j].Band {
+				return meshFaces[i].BSSID < meshFaces[j].BSSID
+			}
+			return meshFaces[i].Band < meshFaces[j].Band
+		})
+		dev.APs = apFaces
+		dev.Mesh = meshFaces
 	}
 
-	return faces
+	// 6) Build final ordered lists: devices by serial, mesh edges
+	devs := make([]models.Device, 0, len(devMap))
+	for _, d := range devMap {
+		devs = append(devs, *d)
+	}
+	sort.Slice(devs, func(i, j int) bool { return devs[i].Serial < devs[j].Serial })
+
+	meshEdges := make([]models.MeshEdge, 0, len(meshEdgeSet))
+	for _, e := range meshEdgeSet {
+		meshEdges = append(meshEdges, e)
+	}
+	sort.Slice(meshEdges, func(i, j int) bool {
+		if meshEdges[i].From == meshEdges[j].From {
+			if meshEdges[i].To == meshEdges[j].To {
+				if meshEdges[i].SSID == meshEdges[j].SSID {
+					if meshEdges[i].Band == meshEdges[j].Band {
+						return meshEdges[i].Channel < meshEdges[j].Channel
+					}
+					return meshEdges[i].Band < meshEdges[j].Band
+				}
+				return meshEdges[i].SSID < meshEdges[j].SSID
+			}
+			return meshEdges[i].To < meshEdges[j].To
+		}
+		return meshEdges[i].From < meshEdges[j].From
+	})
+
+	// 7) Final response
+	out := models.Topology{
+		BoardID:   boardID,
+		Timestamp: time.Unix(end, 0).UTC().Format(time.RFC3339),
+		Meta: models.TopoMeta{
+			Mode:                  mode,
+			WindowStart:           time.Unix(start, 0).UTC().Format(time.RFC3339),
+			WindowEnd:             time.Unix(end, 0).UTC().Format(time.RFC3339),
+			DriftAllowanceSeconds: int(drift.Seconds()),
+			ServedFrom:            "db",
+		},
+		Nodes:    devs,
+		Edges:    models.TopoEdges{Wired: []any{}, Mesh: meshEdges},
+		External: []any{},
+	}
+	return out, nil
 }
 
-func str(v any) string {
-	if v == nil {
-		return ""
+// empty result with meta prefilled
+func (s *topologyService) emptyResult(boardID string, at, start, end int64, mode string, drift time.Duration) models.Topology {
+	out := models.Topology{
+		BoardID: boardID,
+		Meta: models.TopoMeta{
+			Mode:                  mode,
+			ServedFrom:            "db",
+			DriftAllowanceSeconds: int(drift.Seconds()),
+		},
+		Nodes:    []models.Device{},
+		Edges:    models.TopoEdges{Wired: []any{}, Mesh: []models.MeshEdge{}},
+		External: []any{},
 	}
-	if s, ok := v.(string); ok {
-		return s
+	if at != 0 {
+		out.Timestamp = time.Unix(at, 0).UTC().Format(time.RFC3339)
 	}
-	return ""
+	if start != 0 || end != 0 {
+		out.Meta.WindowStart = time.Unix(start, 0).UTC().Format(time.RFC3339)
+		out.Meta.WindowEnd = time.Unix(end, 0).UTC().Format(time.RFC3339)
+	}
+	return out
 }
-func intval(v any) int {
-	switch t := v.(type) {
-	case float64:
-		return int(t)
-	case int:
-		return t
-	case int64:
-		return int(t)
-	case string:
-		return 0
-	default:
-		return 0
-	}
-}
-func firstNonEmpty(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
+
+func normMAC(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
 }

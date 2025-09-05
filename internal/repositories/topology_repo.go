@@ -2,72 +2,65 @@ package repositories
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"time"
+	"errors"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/router-architects/network-topology-service/internal/models"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type TopologyRepository interface {
-	FetchLatestRows(ctx context.Context, groupID string, start, end time.Time) ([]row, error)
+	LatestTimestamp(ctx context.Context, boardID string) (int64, error)
+	FetchTimepoints(ctx context.Context, boardID string, start, end int64) ([]models.TimepointRow, error)
 }
 
-type repo struct {
+type pgRepo struct {
 	pool *pgxpool.Pool
 }
 
-func NewTopologyRepo(pool *pgxpool.Pool) TopologyRepository {
-	return &repo{pool: pool}
+func NewTopologyRepository(pool *pgxpool.Pool) TopologyRepository {
+	return &pgRepo{pool: pool}
 }
 
-type row struct {
-	id           string
-	boardID      string
-	timestamp    time.Time
-	serialNumber string
-	ssidData     map[string]any
-	deviceInfo   map[string]any
+func (r *pgRepo) LatestTimestamp(ctx context.Context, boardID string) (int64, error) {
+	const q = `SELECT COALESCE(MAX("timestamp"), 0) FROM public.timepoints WHERE boardid = $1`
+	var maxTs int64
+	if err := r.pool.QueryRow(ctx, q, boardID).Scan(&maxTs); err != nil {
+		return 0, err
+	}
+	if maxTs == 0 {
+		return 0, errors.New("no_timestamp_for_board")
+	}
+	return maxTs, nil
 }
 
-const q = `
-SELECT DISTINCT ON (serialnumber)
-  id, boardid, timestamp, serialnumber, ssid_data, device_info
-FROM timepoints
-WHERE boardid = $1
-  AND timestamp BETWEEN $2 AND $3
-ORDER BY serialnumber, timestamp DESC;
-`
-
-func (r *repo) FetchLatestRows(ctx context.Context, groupID string, start, end time.Time) ([]row, error) {
-	rows, err := r.pool.Query(ctx, q, groupID, start, end)
+func (r *pgRepo) FetchTimepoints(ctx context.Context, boardID string, start, end int64) ([]models.TimepointRow, error) {
+	const q = `
+SELECT id, boardid, "timestamp", ssid_data, device_info, serialnumber
+FROM public.timepoints
+WHERE boardid = $1 AND "timestamp" > $2 AND "timestamp" <= $3
+ORDER BY "timestamp" DESC`
+	rows, err := r.pool.Query(ctx, q, boardID, start, end)
 	if err != nil {
-		return nil, fmt.Errorf("query latest rows: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
-	var out []row
+	var out []models.TimepointRow
 	for rows.Next() {
-		var rr row
-		var ssidRaw, infoRaw []byte
-		if err := rows.Scan(&rr.id, &rr.boardID, &rr.timestamp, &rr.serialNumber, &ssidRaw, &infoRaw); err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
+		var rID, rBoard, rSSID, rDev, rSerial string
+		var rTs int64
+		if err := rows.Scan(&rID, &rBoard, &rTs, &rSSID, &rDev, &rSerial); err != nil {
+			return nil, err
 		}
-		if len(ssidRaw) > 0 {
-			if err := json.Unmarshal(ssidRaw, &rr.ssidData); err != nil {
-				return nil, fmt.Errorf("unmarshal ssid_data: %w", err)
-			}
-		}
-		if len(infoRaw) > 0 {
-			if err := json.Unmarshal(infoRaw, &rr.deviceInfo); err != nil {
-				return nil, fmt.Errorf("unmarshal device_info: %w", err)
-			}
-		}
-		out = append(out, rr)
+		out = append(out, models.TimepointRow{
+			ID:         rID,
+			BoardID:    rBoard,
+			Timestamp:  rTs,
+			SSIDData:   rSSID,
+			DeviceInfo: rDev,
+			Serial:     rSerial,
+		})
 	}
-	if err := rows.Err(); err != nil && err != pgx.ErrNoRows {
-		return nil, fmt.Errorf("rows err: %w", err)
-	}
-	return out, nil
+	return out, rows.Err()
 }

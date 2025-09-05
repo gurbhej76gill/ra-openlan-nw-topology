@@ -1,30 +1,32 @@
 package middlewares
 
 import (
-	"strings"
+	"github.com/router-architects/network-topology-service/internal/apperrors"
+	"github.com/router-architects/network-topology-service/internal/logger"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/sirupsen/logrus"
-
-	"github.com/router-architects/network-topology/internal/config"
 )
 
-func Auth(cfg config.Config) fiber.Handler {
+func APIKeyAuth(expected string) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		// If no token configured, auth pass-through (useful for local/dev)
-		if cfg.AuthBearerToken == "" {
-			return c.Next()
+		if expected == "" {
+			// no auth configured -> deny
+			return c.Status(fiber.StatusUnauthorized).JSON(errBody(apperrors.CodeUnauthorized, "missing API key"))
 		}
-		authz := string(c.Request().Header.Peek("Authorization"))
-		if !strings.HasPrefix(authz, "Bearer ") {
-			logrus.Warn("missing bearer token")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing bearer token"})
-		}
-		token := strings.TrimPrefix(authz, "Bearer ")
-		if token != cfg.AuthBearerToken {
-			logrus.Warn("invalid bearer token")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid token"})
+		got := string(c.Request().Header.Peek("X-API-KEY"))
+		if got == "" || got != expected {
+			logger.GetLogger().WithFields(logger.Fields{
+				"path": c.Path(), "method": c.Method(),
+			}).Warn("unauthorized request")
+			return c.Status(fiber.StatusUnauthorized).JSON(errBody(apperrors.CodeUnauthorized, "unauthorized"))
 		}
 		return c.Next()
 	}
+}
+
+func errBody(code apperrors.ErrorCode, msg string) map[string]any {
+	return map[string]any{"error": map[string]any{
+		"code":    code,
+		"message": msg,
+	}}
 }

@@ -3,25 +3,43 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/router-architects/network-topology/internal/config"
 )
 
-func NewPool(ctx context.Context, cfg config.Config) (*pgxpool.Pool, error) {
-	cfgPGX, err := pgxpool.ParseConfig(cfg.PostgresDSN)
-	if err != nil {
-		return nil, fmt.Errorf("parse postgres dsn: %w", err)
-	}
-	cfgPGX.MaxConns = int32(cfg.PGMaxConns)
+type Config struct {
+	Host            string
+	Port            int
+	User            string
+	Password        string
+	Database        string
+	SSLMode         string
+	MaxConns        int32
+	MinConns        int32
+	MaxConnLifetime time.Duration
+}
 
-	pool, err := pgxpool.NewWithConfig(ctx, cfgPGX)
+func NewPool(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database, cfg.SSLMode)
+
+	pcfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("pgx pool create: %w", err)
+		return nil, fmt.Errorf("parse pgx config: %w", err)
 	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("pgx ping: %w", err)
+	if cfg.MaxConns > 0 {
+		pcfg.MaxConns = cfg.MaxConns
 	}
-	return pool, nil
+	if cfg.MinConns > 0 {
+		pcfg.MinConns = cfg.MinConns
+	}
+	if cfg.MaxConnLifetime > 0 {
+		pcfg.MaxConnLifetime = cfg.MaxConnLifetime
+	}
+	p, err := pgxpool.NewWithConfig(ctx, pcfg)
+	if err != nil {
+		return nil, fmt.Errorf("create pgx pool: %w", err)
+	}
+	return p, nil
 }

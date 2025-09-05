@@ -1,12 +1,12 @@
-package httpserver
+package http
 
 import (
+	"github.com/router-architects/network-topology-service/internal/http/handlers"
+
 	"github.com/gofiber/fiber/v3"
-	"github.com/router-architects/network-topology/internal/http/handlers"
-	"github.com/router-architects/network-topology/internal/services"
 )
 
-func RegisterRoutes(app *fiber.App, topoSvc services.TopologyService) {
+func RegisterRoutes(app *fiber.App, th *handlers.TopologyHandler) {
 	v1 := app.Group("/v1")
-	handlers.NewTopologyHandler(topoSvc).Register(v1)
+	v1.Get("/topology", th.GetTopology)
 }

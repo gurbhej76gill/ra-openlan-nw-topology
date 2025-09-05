@@ -7,31 +7,38 @@ import (
 )
 
 type Config struct {
-	AppName  string `env:"APP_NAME" envDefault:"network-topology-svc"`
-	AppEnv   string `env:"APP_ENV"  envDefault:"dev"`
-	HTTPAddr string `env:"HTTP_ADDR" envDefault:":8080"`
+	AppName     string        `env:"APP_NAME" envDefault:"network-topology-service"`
+	AppEnv      string        `env:"APP_ENV" envDefault:"dev"`
+	HTTPPort    int           `env:"HTTP_PORT" envDefault:"8080"`
+	HTTPReadTO  time.Duration `env:"HTTP_READ_TIMEOUT" envDefault:"15s"`
+	HTTPWriteTO time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"15s"`
 
-	// Auth
-	AuthBearerToken string `env:"AUTH_BEARER_TOKEN" envDefault:""` // optional; if empty, auth is disabled
+	APIKey string `env:"API_KEY" envDefault:"dev-secret-key"`
 
-	// Logging
-	LogLevel    string `env:"LOG_LEVEL" envDefault:"info"`
-	LogJSON     bool   `env:"LOG_JSON" envDefault:"true"`
-	LogFilePath string `env:"LOG_FILE_PATH" envDefault:"./logs/app.log"`
+	PGHost        string        `env:"PG_HOST" envDefault:"postgres"`
+	PGPort        int           `env:"PG_PORT" envDefault:"5432"`
+	PGUser        string        `env:"PG_USER" envDefault:"app"`
+	PGPassword    string        `env:"PG_PASSWORD" envDefault:"app"`
+	PGDatabase    string        `env:"PG_DATABASE" envDefault:"topology"`
+	PGSSLMode     string        `env:"PG_SSLMODE" envDefault:"disable"`
+	PGMaxConns    int32         `env:"PG_MAX_CONNS" envDefault:"10"`
+	PGMinConns    int32         `env:"PG_MIN_CONNS" envDefault:"1"`
+	PGMaxLifetime time.Duration `env:"PG_MAX_CONN_LIFETIME" envDefault:"30m"`
 
-	// Postgres
-	PostgresDSN string `env:"POSTGRES_DSN,required"` // e.g. postgres://user:pass@host:5432/dbname?sslmode=disable
-	PGMaxConns  int    `env:"PG_MAX_CONNS" envDefault:"10"`
-
-	// Redis (placeholder; not required by Phase 1)
-	RedisURL string `env:"REDIS_URL" envDefault:""`
-
-	// Topology window and drift (Phase 1)
 	TopologyWindow time.Duration `env:"TOPOLOGY_WINDOW" envDefault:"1h"`
-	DriftAllowance time.Duration `env:"DRIFT_ALLOWANCE" envDefault:"2m"`
+	TopologyDrift  time.Duration `env:"TOPOLOGY_DRIFT" envDefault:"2m"`
+
+	LogPath       string `env:"LOG_PATH" envDefault:"/var/log/app/app.log"`
+	LogMaxSizeMB  int    `env:"LOG_MAX_SIZE_MB" envDefault:"50"`
+	LogMaxBackups int    `env:"LOG_MAX_BACKUPS" envDefault:"5"`
+	LogMaxAgeDays int    `env:"LOG_MAX_AGE_DAYS" envDefault:"30"`
+	LogLevel      string `env:"LOG_LEVEL" envDefault:"info"`
 }
 
-func Load() (Config, error) {
+func Load() (*Config, error) {
 	var c Config
-	return c, env.Parse(&c)
+	if err := env.Parse(&c); err != nil {
+		return nil, err
+	}
+	return &c, nil
 }

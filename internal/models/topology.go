@@ -1,60 +1,62 @@
 package models
 
-import "time"
-
-// Public response DTOs can be exported; internal structs kept unexported to minimize API surface.
-
-type Client struct {
-	Station       string `json:"station"`
-	RSSI          int    `json:"rssi"`
-	Connected     int    `json:"connected"`
-	Inactive      int    `json:"inactive"`
-	RxRateBitrate int    `json:"rx_rate_bitrate"`
-	TxRateBitrate int    `json:"tx_rate_bitrate"`
-	RxRateChWidth int    `json:"rx_rate_chwidth"`
+// Topology is the response model shaped per your example.
+type Topology struct {
+	BoardID   string    `json:"boardId"`
+	Timestamp string    `json:"timestamp"` // RFC3339 UTC
+	Meta      TopoMeta  `json:"meta"`
+	Nodes     []Device  `json:"nodes"`
+	Edges     TopoEdges `json:"edges"`
+	External  []any     `json:"external"`
 }
 
-type Face struct {
-	BSSID     string    `json:"bssid"`
-	SSID      string    `json:"ssid"`
-	Band      string    `json:"band"`
-	Channel   int       `json:"channel"`
-	Mode      string    `json:"mode"` // "ap" or "mesh"
-	Clients   []Client  `json:"clients"`
-	Timestamp time.Time `json:"timestamp"`
+type TopoMeta struct {
+	Mode                  string `json:"mode"`                    // "latest" if at omitted; "at" otherwise
+	WindowStart           string `json:"window_start"`            // RFC3339 UTC
+	WindowEnd             string `json:"window_end"`              // RFC3339 UTC
+	DriftAllowanceSeconds int    `json:"drift_allowance_seconds"` // e.g., 120
+	ServedFrom            string `json:"served_from"`             // "db"
 }
 
-type TopologyNode struct {
+// Device groups faces by device serial.
+type Device struct {
 	Serial string `json:"serial"`
 	APs    []Face `json:"aps"`
 	Mesh   []Face `json:"mesh"`
 }
 
+// Face represents one BSSID on a band (AP or Mesh) at a specific sample timestamp.
+type Face struct {
+	BSSID     string        `json:"bssid"`
+	SSID      string        `json:"ssid"`
+	Band      string        `json:"band"` // "2" | "5" | "6" etc. (string per your sample)
+	Channel   int           `json:"channel"`
+	Mode      string        `json:"mode"`      // "ap" | "mesh"
+	Clients   *[]FaceClient `json:"clients"`   // nil -> JSON null
+	Timestamp string        `json:"timestamp"` // RFC3339 with zone (Asia/Kolkata)
+}
+
+// FaceClient is an association record on a face at that timestamp.
+type FaceClient struct {
+	Station       string `json:"station"` // MAC (normalized)
+	RSSI          int    `json:"rssi"`
+	Connected     int    `json:"connected"`
+	Inactive      int    `json:"inactive"`
+	RxRateBitrate int    `json:"rx_rate_bitrate"`
+	TxRateBitrate int    `json:"tx_rate_bitrate"`
+	RxRateChwidth int    `json:"rx_rate_chwidth"`
+}
+
+type TopoEdges struct {
+	Wired []any      `json:"wired"` // kept for future; empty now
+	Mesh  []MeshEdge `json:"mesh"`
+}
+
+// MeshEdge is a directed edge from one device (serial) to another via mesh.
 type MeshEdge struct {
-	From    string `json:"from"`
-	To      string `json:"to"`
+	From    string `json:"from"` // serial
+	To      string `json:"to"`   // serial
 	SSID    string `json:"ssid"`
 	Band    string `json:"band"`
 	Channel int    `json:"channel"`
-}
-
-type topologyMeta struct {
-	Mode                  string    `json:"mode"` // latest|historical
-	WindowStart           time.Time `json:"window_start"`
-	WindowEnd             time.Time `json:"window_end"`
-	DriftAllowanceSeconds int       `json:"drift_allowance_seconds"`
-	ServedFrom            string    `json:"served_from"`
-}
-
-type TopologyResponse struct {
-	GroupID   string       `json:"groupId"`
-	Timestamp string       `json:"timestamp"`
-	Meta      topologyMeta `json:"meta"`
-
-	Nodes []TopologyNode `json:"nodes"`
-	Edges struct {
-		Wired []any      `json:"wired"`
-		Mesh  []MeshEdge `json:"mesh"`
-	} `json:"edges"`
-	External []any `json:"external"`
 }

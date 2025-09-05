@@ -2,65 +2,130 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/natefinch/lumberjack.v2"
 
-	"github.com/router-architects/network-topology/adapters/postgres"
-	"github.com/router-architects/network-topology/internal/config"
-	"github.com/router-architects/network-topology/internal/http"
-	"github.com/router-architects/network-topology/internal/logger"
-	"github.com/router-architects/network-topology/internal/repositories"
-	"github.com/router-architects/network-topology/internal/services"
+	"github.com/router-architects/network-topology-service/adapters/postgres"
+	"github.com/router-architects/network-topology-service/internal/config"
+	"github.com/router-architects/network-topology-service/internal/http"
+	"github.com/router-architects/network-topology-service/internal/http/handlers"
+	"github.com/router-architects/network-topology-service/internal/logger"
+	"github.com/router-architects/network-topology-service/internal/repositories"
+	"github.com/router-architects/network-topology-service/internal/services"
 )
 
-func main() {
-	// Root context for graceful shutdowns.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+type logrusAdapter struct{ *logrus.Entry }
 
-	// Load config
+func (l logrusAdapter) Trace(args ...interface{})         { l.Entry.Trace(args...) }
+func (l logrusAdapter) Debug(args ...interface{})         { l.Entry.Debug(args...) }
+func (l logrusAdapter) Info(args ...interface{})          { l.Entry.Info(args...) }
+func (l logrusAdapter) Warn(args ...interface{})          { l.Entry.Warn(args...) }
+func (l logrusAdapter) Error(args ...interface{})         { l.Entry.Error(args...) }
+func (l logrusAdapter) Fatal(args ...interface{})         { l.Entry.Fatal(args...) }
+func (l logrusAdapter) Tracef(f string, a ...interface{}) { l.Entry.Tracef(f, a...) }
+func (l logrusAdapter) Debugf(f string, a ...interface{}) { l.Entry.Debugf(f, a...) }
+func (l logrusAdapter) Infof(f string, a ...interface{})  { l.Entry.Infof(f, a...) }
+func (l logrusAdapter) Warnf(f string, a ...interface{})  { l.Entry.Warnf(f, a...) }
+func (l logrusAdapter) Errorf(f string, a ...interface{}) { l.Entry.Errorf(f, a...) }
+func (l logrusAdapter) Fatalf(f string, a ...interface{}) { l.Entry.Fatalf(f, a...) }
+func (l logrusAdapter) WithFields(fields logger.Fields) logger.Logger {
+	return logrusAdapter{l.Entry.WithFields(logrus.Fields(fields))}
+}
+func (l logrusAdapter) WithField(key string, value interface{}) logger.Logger {
+	return logrusAdapter{l.Entry.WithField(key, value)}
+}
+func (l logrusAdapter) WithError(err error) logger.Logger {
+	return logrusAdapter{l.Entry.WithError(err)}
+}
+
+func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		logrus.WithError(err).Fatal("failed to load config")
+		panic(err)
 	}
 
-	// Init logger (stdout + rotating file)
-	logger.Init(cfg)
+	// logrus + lumberjack
+	ll := &lumberjack.Logger{
+		Filename:   cfg.LogPath,
+		MaxSize:    cfg.LogMaxSizeMB,
+		MaxBackups: cfg.LogMaxBackups,
+		MaxAge:     cfg.LogMaxAgeDays,
+		Compress:   true,
+	}
+	log := logrus.New()
+	log.SetOutput(ll)
+	level, _ := logrus.ParseLevel(cfg.LogLevel)
+	log.SetLevel(level)
+	log.SetFormatter(&logrus.JSONFormatter{TimestampFormat: time.RFC3339Nano})
+	logger.SetLogger(logrusAdapter{log.WithField("app", cfg.AppName)})
 
-	// Postgres
-	pool, err := postgres.NewPool(ctx, cfg)
+	// pgx pool
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	pool, err := postgres.NewPool(ctx, postgres.Config{
+		Host:            cfg.PGHost,
+		Port:            cfg.PGPort,
+		User:            cfg.PGUser,
+		Password:        cfg.PGPassword,
+		Database:        cfg.PGDatabase,
+		SSLMode:         cfg.PGSSLMode,
+		MaxConns:        cfg.PGMaxConns,
+		MinConns:        cfg.PGMinConns,
+		MaxConnLifetime: cfg.PGMaxLifetime,
+	})
 	if err != nil {
-		logrus.WithError(err).Fatal("failed to init postgres pool")
+		logger.GetLogger().WithError(err).Fatal("failed to connect postgres")
 	}
-	defer pool.Close()
 
-	// Repository
-	topologyRepo := repositories.NewTopologyRepo(pool)
+	// wire
+	repo := repositories.NewTopologyRepository(pool)
+	svc := services.NewTopologyService(repo, logger.GetLogger())
 
-	// Service
-	topologySvc := services.NewTopologyService(topologyRepo, cfg)
+	app := fiber.New(fiber.Config{
+		// optional: tune body limits, read/write timeouts are handled by env values for HTTP server if you run behind a reverse proxy
+	})
 
-	// HTTP server
-	srv := httpserver.New(cfg, topologySvc)
+	th := handlers.NewTopologyHandler(svc)
+	http.New(app, http.ServerDeps{
+		APIKey:         cfg.APIKey,
+		TopologyWindow: cfg.TopologyWindow,
+		TopologyDrift:  cfg.TopologyDrift,
+	}, th)
+
+	// health
+	app.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+	app.Get("/readyz", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+
+	// graceful
 	go func() {
-		if err := srv.Start(); err != nil {
-			logrus.WithError(err).Fatal("http server failed")
+		addr := ":" + os.Getenv("HTTP_PORT")
+		if cfg.HTTPPort != 0 {
+			addr = ":" + strconvI(cfg.HTTPPort)
+		}
+		if err := app.Listen(addr); err != nil {
+			logger.GetLogger().WithError(err).Fatal("fiber listen failed")
 		}
 	}()
 
-	// Graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
-	ctxTimeout, cancel2 := context.WithTimeout(ctx, 5*time.Second)
+	shutdownCtx, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel2()
-	if err := srv.Stop(ctxTimeout); err != nil {
-		logrus.WithError(err).Warn("http server stop with warnings")
-	}
-	logrus.Info("shutdown complete")
+	_ = app.Shutdown()
+	pool.Close()
+	<-shutdownCtx.Done()
+}
+
+func strconvI(v int) string {
+	return fmt.Sprintf("%d", v)
 }

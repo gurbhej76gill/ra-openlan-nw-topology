@@ -1,29 +1,55 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -e
 
-ROOT_DIR="${1:-network-topology-svc}"
+# Root
+mkdir -p network-topology-service
+cd network-topology-service
 
-mkdir -p "$ROOT_DIR"/{adapters/postgres,cmd,internal/{apperrors,config,http/{handlers,middlewares},logger,models,repositories,services,utils},scripts}
-touch "$ROOT_DIR"/{.gitignore,.dockerignore,Dockerfile,Jenkinsfile,README.md,docker-compose.yaml,go.mod}
-touch "$ROOT_DIR"/cmd/main.go
+# Go module init placeholder
+touch go.mod go.sum
 
-# internal
-touch "$ROOT_DIR"/internal/apperrors/errors.go
-touch "$ROOT_DIR"/internal/config/config.go
-touch "$ROOT_DIR"/internal/http/server.go
-touch "$ROOT_DIR"/internal/http/routes.go
-touch "$ROOT_DIR"/internal/http/handlers/topology.go
-touch "$ROOT_DIR"/internal/http/middlewares/auth.go
-touch "$ROOT_DIR"/internal/http/middlewares/request_logger.go
-touch "$ROOT_DIR"/internal/logger/logger.go
-touch "$ROOT_DIR"/internal/models/timepoint_row.go
-touch "$ROOT_DIR"/internal/models/topology.go
-touch "$ROOT_DIR"/internal/repositories/topology_repo.go
-touch "$ROOT_DIR"/internal/services/topology_service.go
-touch "$ROOT_DIR"/internal/utils/time.go
+# Docker & CI
+touch Dockerfile docker-compose.yaml Jenkinsfile README.md .gitignore .dockerignore
 
-# adapters
-touch "$ROOT_DIR"/adapters/postgres/pgx.go
+# Command entrypoint
+mkdir -p cmd
+touch cmd/main.go
 
-echo "Scaffold created at: $ROOT_DIR"
+# Adapters
+mkdir -p adapters/postgres
+touch adapters/postgres/pgx.go
+
+# Internal
+mkdir -p internal/{apperrors,config,http/handlers,http/middlewares,logger,models,repositories,services,utils}
+
+# Apperrors
+touch internal/apperrors/errors.go
+
+# Config
+touch internal/config/config.go
+
+# HTTP
+touch internal/http/routes.go
+touch internal/http/server.go
+touch internal/http/handlers/topology.go
+touch internal/http/middlewares/auth.go
+touch internal/http/middlewares/request_logger.go
+
+# Logger
+touch internal/logger/logger.go
+
+# Models
+touch internal/models/timepoint_row.go
+touch internal/models/topology.go
+
+# Repositories
+touch internal/repositories/topology_repo.go
+
+# Services
+touch internal/services/topology_service.go
+
+# Utils
+touch internal/utils/time.go
+
+echo "Project skeleton created successfully."
 

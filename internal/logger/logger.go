@@ -1,51 +1,34 @@
 package logger
 
-import (
-	"os"
+// Fields is a convenience alias for structured log fields.
+type Fields map[string]interface{}
 
-	"github.com/sirupsen/logrus"
-	"gopkg.in/natefinch/lumberjack.v2"
+// Logger defines the minimal interface our app expects from a logger implementation.
+// (We adapt logrus to this interface in cmd/main.go.)
+type Logger interface {
+	Trace(args ...interface{})
+	Debug(args ...interface{})
+	Info(args ...interface{})
+	Warn(args ...interface{})
+	Error(args ...interface{})
+	Fatal(args ...interface{})
 
-	"github.com/router-architects/network-topology/internal/config"
-)
+	Tracef(format string, args ...interface{})
+	Debugf(format string, args ...interface{})
+	Infof(format string, args ...interface{})
+	Warnf(format string, args ...interface{})
+	Errorf(format string, args ...interface{})
+	Fatalf(format string, args ...interface{})
 
-func Init(cfg config.Config) {
-	lvl, err := logrus.ParseLevel(cfg.LogLevel)
-	if err != nil {
-		lvl = logrus.InfoLevel
-	}
-	logrus.SetLevel(lvl)
-	logrus.SetOutput(os.Stdout)
-	logrus.SetReportCaller(true)
-
-	if cfg.LogJSON {
-		logrus.SetFormatter(&logrus.JSONFormatter{})
-	}
-
-	if cfg.LogFilePath != "" {
-		logrus.AddHook(&rotateHook{
-			logger: &lumberjack.Logger{
-				Filename:   cfg.LogFilePath,
-				MaxSize:    50, // MB
-				MaxBackups: 5,
-				MaxAge:     30, // days
-				Compress:   true,
-			},
-		})
-	}
+	WithFields(fields Fields) Logger
+	WithField(key string, value interface{}) Logger
+	WithError(err error) Logger
 }
 
-type rotateHook struct {
-	logger *lumberjack.Logger
-}
+var globalLogger Logger
 
-func (h *rotateHook) Levels() []logrus.Level { return logrus.AllLevels }
-func (h *rotateHook) Fire(e *logrus.Entry) error {
-	// write a copy to file sink
-	b, err := e.Logger.Formatter.Format(e)
-	if err != nil {
-		return err
-	}
-	_, err = h.logger.Write(b)
-	return err
-}
+// SetLogger sets the global logger instance used by the app.
+func SetLogger(l Logger) { globalLogger = l }
+
+// GetLogger gets the global logger instance (may be nil if not initialized).
+func GetLogger() Logger { return globalLogger }

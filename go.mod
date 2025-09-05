@@ -1,12 +1,11 @@
-module github.com/router-architects/network-topology
+module github.com/router-architects/network-topology-service
 
 go 1.24.2
 
 require (
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/gofiber/fiber/v3 v3.0.0-beta.4
-	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.6.0
+	github.com/jackc/pgx/v5 v5.5.4
 	github.com/sirupsen/logrus v1.9.3
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
@@ -16,6 +15,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/gofiber/schema v1.2.0 // indirect
 	github.com/gofiber/utils/v2 v2.0.0-beta.7 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
