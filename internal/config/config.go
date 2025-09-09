@@ -33,6 +33,8 @@ type Config struct {
 	LogMaxBackups int    `env:"LOG_MAX_BACKUPS" envDefault:"5"`
 	LogMaxAgeDays int    `env:"LOG_MAX_AGE_DAYS" envDefault:"30"`
 	LogLevel      string `env:"LOG_LEVEL" envDefault:"info"`
+	TLS_CERT      string `env:"TLS_CERT"`
+	TLS_KEY       string `env:"TLS_KEY"`
 }
 
 func Load() (*Config, error) {
