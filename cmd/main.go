@@ -17,30 +17,6 @@ import (
 	"github.com/router-architects/network-topology-service/internal/services"
 )
 
-type logrusAdapter struct{ *logrus.Entry }
-
-func (l logrusAdapter) Trace(args ...interface{})         { l.Entry.Trace(args...) }
-func (l logrusAdapter) Debug(args ...interface{})         { l.Entry.Debug(args...) }
-func (l logrusAdapter) Info(args ...interface{})          { l.Entry.Info(args...) }
-func (l logrusAdapter) Warn(args ...interface{})          { l.Entry.Warn(args...) }
-func (l logrusAdapter) Error(args ...interface{})         { l.Entry.Error(args...) }
-func (l logrusAdapter) Fatal(args ...interface{})         { l.Entry.Fatal(args...) }
-func (l logrusAdapter) Tracef(f string, a ...interface{}) { l.Entry.Tracef(f, a...) }
-func (l logrusAdapter) Debugf(f string, a ...interface{}) { l.Entry.Debugf(f, a...) }
-func (l logrusAdapter) Infof(f string, a ...interface{})  { l.Entry.Infof(f, a...) }
-func (l logrusAdapter) Warnf(f string, a ...interface{})  { l.Entry.Warnf(f, a...) }
-func (l logrusAdapter) Errorf(f string, a ...interface{}) { l.Entry.Errorf(f, a...) }
-func (l logrusAdapter) Fatalf(f string, a ...interface{}) { l.Entry.Fatalf(f, a...) }
-func (l logrusAdapter) WithFields(fields logger.Fields) logger.Logger {
-	return logrusAdapter{l.Entry.WithFields(logrus.Fields(fields))}
-}
-func (l logrusAdapter) WithField(key string, value interface{}) logger.Logger {
-	return logrusAdapter{l.Entry.WithField(key, value)}
-}
-func (l logrusAdapter) WithError(err error) logger.Logger {
-	return logrusAdapter{l.Entry.WithError(err)}
-}
-
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -60,7 +36,7 @@ func main() {
 	level, _ := logrus.ParseLevel(cfg.LogLevel)
 	log.SetLevel(level)
 	log.SetFormatter(&logrus.JSONFormatter{TimestampFormat: time.RFC3339Nano})
-	logger.SetLogger(logrusAdapter{log.WithField("app", cfg.AppName)})
+	logger.SetLogger(logger.LogrusAdapter{log.WithField("app", cfg.AppName)})
 
 	// pgx pool
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
