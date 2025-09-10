@@ -2,12 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
-	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -96,83 +90,16 @@ func main() {
 	})
 
 	th := handlers.NewTopologyHandler(svc)
-	http.New(app, http.ServerDeps{
+	deps := http.ServerDeps{
 		APIKey:         cfg.APIKey,
 		TopologyWindow: cfg.TopologyWindow,
 		TopologyDrift:  cfg.TopologyDrift,
-	}, th)
-
-	// health
-	app.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
-	app.Get("/readyz", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
-
-	// ---------- TLS setup ----------
-	crt := cfg.TLS_CERT
-	key := cfg.TLS_KEY
-	if crt == "" || key == "" {
-		log.Fatalf("TLS_CERT and TLS_KEY must be set")
 	}
 
-	if _, err := os.Stat(crt); err != nil {
-		log.Fatalf("TLS cert not found/readable: %s (%v)", crt, err)
-	}
-	if _, err := os.Stat(key); err != nil {
-		log.Fatalf("TLS key not found/readable: %s (%v)", key, err)
-	}
+	http.New(app, deps, th)
 
-	cert, err := tls.LoadX509KeyPair(crt, key)
+	err = (&deps).Start(app, *cfg, *pool)
 	if err != nil {
-		log.Fatalf("Failed to load X509 key pair (cert=%s key=%s): %v", crt, key, err)
+		logger.GetLogger().WithError(err).Fatal("failed to start http server")
 	}
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-	}
-
-	port := cfg.HTTPPort
-	if port == 0 {
-		if ep := os.Getenv("HTTP_PORT"); ep != "" {
-			if v, convErr := strconv.Atoi(ep); convErr == nil {
-				port = v
-			}
-		}
-		if port == 0 {
-			port = 8443
-		}
-	}
-	addr := fmt.Sprintf(":%d", port)
-
-	ln, err := tls.Listen("tcp", addr, tlsConfig)
-	if err != nil {
-		log.Fatalf("failed to start TLS listener on %s: %v", addr, err)
-	}
-
-	// ---------- serve + graceful shutdown ----------
-	log.WithField("addr", addr).Info("Listening (TLS)")
-
-	// Run the Fiber server in its own goroutine
-	go func() {
-		if err := app.Listener(ln); err != nil {
-			logger.GetLogger().WithError(err).Error("fiber listener stopped")
-		}
-	}()
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
-
-	// Stop accepting new connections and shut down Fiber
-	shutdownCtx, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel2()
-
-	if err := app.Shutdown(); err != nil {
-		logger.GetLogger().WithError(err).Error("fiber shutdown error")
-	}
-
-	_ = ln.Close()
-
-	// Close DB pool
-	pool.Close()
-
-	<-shutdownCtx.Done()
-	log.Info("Shutdown complete")
 }
