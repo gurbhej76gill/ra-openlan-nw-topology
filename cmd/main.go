@@ -97,6 +97,7 @@ func main() {
 	}
 
 	http.New(app, deps, th)
+	deps.RegisterRoutes(app, th)
 
 	err = (&deps).Start(app, *cfg, *pool)
 	if err != nil {

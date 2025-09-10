@@ -39,8 +39,6 @@ func New(app *fiber.App, deps ServerDeps, th *handlers.TopologyHandler) *fiber.A
 		c.Locals("topology_drift", deps.TopologyDrift)
 		return c.Next()
 	})
-
-	RegisterRoutes(app, th)
 	return app
 }
 
