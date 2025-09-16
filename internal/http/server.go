@@ -79,7 +79,7 @@ func (s *ServerDeps) Start(app *fiber.App, cfg config.Config, pool pgxpool.Pool)
 	// Run the Fiber server in its own goroutine
 	go func() {
 		if err := app.Listener(ln); err != nil {
-			logger.GetLogger().WithError(err).Error("fiber listener stopped")
+			logger.GetLogger().WithError(err).Fatal("fiber listener stopped")
 		}
 	}()
 
