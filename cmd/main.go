@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
 
-	kafkaproducer "github.com/router-architects/network-topology-service/adapters/kafka"
+	kafkaadapter "github.com/router-architects/network-topology-service/adapters/kafka"
 	"github.com/router-architects/network-topology-service/adapters/postgres"
 	"github.com/router-architects/network-topology-service/internal/config"
 	"github.com/router-architects/network-topology-service/internal/http"
@@ -65,12 +65,12 @@ func main() {
 
 	discoveryStore := store.NewDiscoveryStore()
 
-	kProducer, err := kafkaproducer.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
+	kProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer")
 	}
 
-	lcProducer, err := kafkaproducer.NewProducerForTopic(cfg, cfg.KafkaTopicLifecycle) // for lifecycle events
+	lcProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicLifecycle) // for lifecycle events
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer (lifecycle)")
 	}
@@ -84,7 +84,7 @@ func main() {
 		logger.GetLogger().WithError(err).Fatal("failed to register discovery component")
 	}
 
-	kConsumer, err := kafka.NewConsumer(cfg, registry)
+	kConsumer, err := kafkaadapter.NewConsumer(cfg, registry)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka consumer")
 	}

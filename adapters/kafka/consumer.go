@@ -8,20 +8,21 @@ import (
 	kgo "github.com/segmentio/kafka-go"
 
 	"github.com/router-architects/network-topology-service/internal/config"
+	internalkafka "github.com/router-architects/network-topology-service/internal/kafka"
 	"github.com/router-architects/network-topology-service/internal/logger"
 )
 
 var (
-	ErrNoTopics  = errors.New("kafka: no topics registered")
+	ErrNoTopics = errors.New("kafka: no topics registered")
 	ErrNoBrokers = errors.New("kafka: no brokers configured")
 )
 
 type Consumer struct {
 	reader   *kgo.Reader
-	registry *Registry
+	registry *internalkafka.Registry
 }
 
-func NewConsumer(cfg *config.Config, registry *Registry) (*Consumer, error) {
+func NewConsumer(cfg *config.Config, registry *internalkafka.Registry) (*Consumer, error) {
 	if cfg == nil {
 		return nil, errors.New("kafka: config is nil")
 	}
@@ -109,6 +110,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 				"component": "kafka.consumer",
 				"topic":     msg.Topic,
 			}).WithError(err).Error("component handle failed")
+			// do not commit so the message can be retried
 			continue
 		}
 
@@ -121,6 +123,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 	}
 }
 
+// Close stops the underlying reader.
 func (c *Consumer) Close() error {
 	if c == nil || c.reader == nil {
 		return nil
