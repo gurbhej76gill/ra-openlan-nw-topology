@@ -8,14 +8,17 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
 
-	"github.com/router-architects/network-topology-service/adapters/kafka"
+	kafkaproducer "github.com/router-architects/network-topology-service/adapters/kafka"
 	"github.com/router-architects/network-topology-service/adapters/postgres"
 	"github.com/router-architects/network-topology-service/internal/config"
 	"github.com/router-architects/network-topology-service/internal/http"
 	"github.com/router-architects/network-topology-service/internal/http/handlers"
+	"github.com/router-architects/network-topology-service/internal/kafka"
 	"github.com/router-architects/network-topology-service/internal/logger"
 	"github.com/router-architects/network-topology-service/internal/repositories"
 	"github.com/router-architects/network-topology-service/internal/services"
+	discoverycomponent "github.com/router-architects/network-topology-service/internal/services/discovery"
+	"github.com/router-architects/network-topology-service/internal/store"
 )
 
 func main() {
@@ -37,7 +40,9 @@ func main() {
 	level, _ := logrus.ParseLevel(cfg.LogLevel)
 	log.SetLevel(level)
 	log.SetFormatter(&logrus.JSONFormatter{TimestampFormat: time.RFC3339Nano})
-	logger.SetLogger(logger.LogrusAdapter{log.WithField("app", cfg.AppName)})
+	entry := logrus.NewEntry(log)
+	logger.SetLogger(logger.LogrusAdapter{entry})
+	logger.SetLogger(logger.GetLogger().WithField("app", cfg.AppName))
 
 	// pgx pool
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -58,9 +63,30 @@ func main() {
 		logger.GetLogger().WithError(err).Fatal("failed to connect postgres")
 	}
 
-	lcProducer, err := kafka.NewProducerForTopic(cfg, cfg.KafkaTopicLifecycle) // for lifecycle events
+	discoveryStore := store.NewDiscoveryStore()
+
+	kProducer, err := kafkaproducer.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
+	if err != nil {
+		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer")
+	}
+
+	lcProducer, err := kafkaproducer.NewProducerForTopic(cfg, cfg.KafkaTopicLifecycle) // for lifecycle events
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer (lifecycle)")
+	}
+
+	registry := kafka.NewRegistry()
+	discoveryComponent, err := discoverycomponent.NewComponent(cfg.KafkaTopicLifecycle, discoveryStore)
+	if err != nil {
+		logger.GetLogger().WithError(err).Fatal("failed to create discovery component")
+	}
+	if err := registry.Register(discoveryComponent); err != nil {
+		logger.GetLogger().WithError(err).Fatal("failed to register discovery component")
+	}
+
+	kConsumer, err := kafka.NewConsumer(cfg, registry)
+	if err != nil {
+		logger.GetLogger().WithError(err).Fatal("failed to init kafka consumer")
 	}
 
 	lifecycleSvc := services.NewLifecycleService(cfg, lcProducer)
@@ -71,6 +97,8 @@ func main() {
 
 	app := fiber.New(fiber.Config{
 		// optional: tune body limits, read/write timeouts are handled by env values for HTTP server if you run behind a reverse proxy
+		ReadTimeout:  time.Second * 10,
+		WriteTimeout: time.Second * 15,
 	})
 
 	th := handlers.NewTopologyHandler(svc)
@@ -83,12 +111,22 @@ func main() {
 	http.New(app, deps, th)
 	deps.RegisterRoutes(app, th)
 
-	runCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	runCtx, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	go func() {
+		if err := kConsumer.Run(runCtx); err != nil {
+			logger.GetLogger().WithError(err).Error("kafka consumer stopped")
+		}
+	}()
 	lifecycleSvc.Start(runCtx)
 
 	err = (&deps).Start(app, *cfg, *pool)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to start http server")
 	}
+
+	runCancel()
+	_ = app.Shutdown()
+	_ = kProducer.Close()
+	_ = kConsumer.Close()
 }

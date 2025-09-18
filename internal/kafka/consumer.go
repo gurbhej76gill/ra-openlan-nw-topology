@@ -1,0 +1,129 @@
+package kafka
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	kgo "github.com/segmentio/kafka-go"
+
+	"github.com/router-architects/network-topology-service/internal/config"
+	"github.com/router-architects/network-topology-service/internal/logger"
+)
+
+var (
+	ErrNoTopics  = errors.New("kafka: no topics registered")
+	ErrNoBrokers = errors.New("kafka: no brokers configured")
+)
+
+type Consumer struct {
+	reader   *kgo.Reader
+	registry *Registry
+}
+
+func NewConsumer(cfg *config.Config, registry *Registry) (*Consumer, error) {
+	if cfg == nil {
+		return nil, errors.New("kafka: config is nil")
+	}
+	if registry == nil {
+		return nil, errors.New("kafka: registry is nil")
+	}
+
+	topics := registry.Topics()
+	if len(topics) == 0 {
+		return nil, ErrNoTopics
+	}
+	if len(cfg.KafkaBrokers) == 0 {
+		return nil, ErrNoBrokers
+	}
+
+	dialTimeout := cfg.KafkaDialTimeout
+	if dialTimeout <= 0 {
+		dialTimeout = 5 * time.Second
+	}
+
+	maxWait := cfg.KafkaReadTimeout
+	if maxWait <= 0 {
+		maxWait = 1 * time.Second
+	}
+
+	dialer := &kgo.Dialer{
+		Timeout:   dialTimeout,
+		DualStack: true,
+	}
+
+	reader := kgo.NewReader(kgo.ReaderConfig{
+		Brokers:               cfg.KafkaBrokers,
+		GroupID:               cfg.KafkaGroupID,
+		GroupTopics:           cfg.KafkaTopics,
+		Dialer:                dialer,
+		MinBytes:              cfg.KafkaMinBytes,
+		MaxBytes:              cfg.KafkaMaxBytes,
+		CommitInterval:        0, // manual commit after handler success
+		WatchPartitionChanges: true,
+		ReadLagInterval:       -1,
+		StartOffset:           kgo.FirstOffset,
+		MaxWait:               maxWait,
+		ReadBackoffMin:        250 * time.Millisecond,
+		ReadBackoffMax:        2 * time.Second,
+	})
+
+	return &Consumer{
+		reader:   reader,
+		registry: registry,
+	}, nil
+}
+
+func (c *Consumer) Run(ctx context.Context) error {
+	for {
+		msg, err := c.reader.FetchMessage(ctx)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+				return nil
+			}
+
+			logger.GetLogger().WithField("component", "kafka.consumer").WithError(err).Error("fetch message failed")
+
+			select {
+			case <-time.After(500 * time.Millisecond):
+			case <-ctx.Done():
+				return nil
+			}
+			continue
+		}
+
+		comp, ok := c.registry.ComponentFor(msg.Topic)
+		if !ok {
+			logger.GetLogger().WithFields(logger.Fields{
+				"component": "kafka.consumer",
+				"topic":     msg.Topic,
+			}).Warn("no component registered; committing message")
+			if err := c.reader.CommitMessages(ctx, msg); err != nil {
+				logger.GetLogger().WithField("component", "kafka.consumer").WithError(err).Error("commit failed for unhandled topic")
+			}
+			continue
+		}
+
+		if err := comp.Handle(ctx, msg); err != nil {
+			logger.GetLogger().WithFields(logger.Fields{
+				"component": "kafka.consumer",
+				"topic":     msg.Topic,
+			}).WithError(err).Error("component handle failed")
+			continue
+		}
+
+		if err := c.reader.CommitMessages(ctx, msg); err != nil {
+			logger.GetLogger().WithFields(logger.Fields{
+				"component": "kafka.consumer",
+				"topic":     msg.Topic,
+			}).WithError(err).Error("commit failed")
+		}
+	}
+}
+
+func (c *Consumer) Close() error {
+	if c == nil || c.reader == nil {
+		return nil
+	}
+	return c.reader.Close()
+}
