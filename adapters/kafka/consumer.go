@@ -7,6 +7,7 @@ import (
 
 	kgo "github.com/segmentio/kafka-go"
 
+	"github.com/router-architects/network-topology-service/internal/apperrors"
 	"github.com/router-architects/network-topology-service/internal/config"
 	internalkafka "github.com/router-architects/network-topology-service/internal/kafka"
 	"github.com/router-architects/network-topology-service/internal/logger"
@@ -24,10 +25,10 @@ type Consumer struct {
 
 func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegistry) (*Consumer, error) {
 	if cfg == nil {
-		return nil, errors.New("kafka: config is nil")
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: config is nil", nil)
 	}
 	if handlerRegistry == nil {
-		return nil, errors.New("kafka: registry is nil")
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: registry is nil", nil)
 	}
 
 	topics := handlerRegistry.Topics()
