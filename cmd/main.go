@@ -63,33 +63,33 @@ func main() {
 		logger.GetLogger().WithError(err).Fatal("failed to connect postgres")
 	}
 
-	discoveryStore := store.NewDiscoveryStore()
+	svcDiscoveryStore := store.NewDiscoveryStore()
 
-	kProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
+	cmdProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer")
 	}
 
-	lcProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicLifecycle) // for lifecycle events
+	lifecycleProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicLifecycle) // for lifecycle events
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer (lifecycle)")
 	}
 
-	registry := kafka.NewRegistry()
-	discoveryComponent, err := discoverycomponent.NewComponent(cfg.KafkaTopicLifecycle, discoveryStore)
+	handlerRegistry := kafka.NewHandlerRegistry()
+	discoveryHandler, err := discoverycomponent.NewDiscoveryHandler(cfg.KafkaTopicLifecycle, svcDiscoveryStore)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to create discovery component")
 	}
-	if err := registry.Register(discoveryComponent); err != nil {
+	if err := handlerRegistry.RegisterHandler(discoveryHandler); err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to register discovery component")
 	}
 
-	kConsumer, err := kafkaadapter.NewConsumer(cfg, registry)
+	consumer, err := kafkaadapter.NewConsumer(cfg, handlerRegistry)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka consumer")
 	}
 
-	lifecycleSvc := services.NewLifecycleService(cfg, lcProducer)
+	lifecycleService := services.NewLifecycleService(cfg, lifecycleProducer)
 
 	// wire
 	repo := repositories.NewTopologyRepository(pool)
@@ -114,11 +114,11 @@ func main() {
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
 	go func() {
-		if err := kConsumer.Run(runCtx); err != nil {
+		if err := consumer.Run(runCtx); err != nil {
 			logger.GetLogger().WithError(err).Error("kafka consumer stopped")
 		}
 	}()
-	lifecycleSvc.Start(runCtx)
+	lifecycleService.Start(runCtx)
 
 	err = (&deps).Start(app, *cfg, *pool)
 	if err != nil {
@@ -127,6 +127,6 @@ func main() {
 
 	runCancel()
 	_ = app.Shutdown()
-	_ = kProducer.Close()
-	_ = kConsumer.Close()
+	_ = cmdProducer.Close()
+	_ = consumer.Close()
 }

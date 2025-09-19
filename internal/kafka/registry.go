@@ -9,30 +9,30 @@ import (
 	kgo "github.com/segmentio/kafka-go"
 )
 
-// Component processes Kafka messages for a single topic.
-type Component interface {
+// TopicHandler processes Kafka messages for a single topic.
+type TopicHandler interface {
 	Topic() string
 	Handle(ctx context.Context, msg kgo.Message) error
 }
 
 var (
-	ErrNilComponent   = errors.New("kafka: component is nil")
-	ErrEmptyTopic     = errors.New("kafka: component topic is empty")
-	ErrDuplicateTopic = errors.New("kafka: component already registered for topic")
+	ErrNilHandler     = errors.New("kafka: handler is nil")
+	ErrEmptyTopic     = errors.New("kafka: handler topic is empty")
+	ErrDuplicateTopic = errors.New("kafka: handler already registered for topic")
 )
 
-type Registry struct {
-	mu         sync.RWMutex
-	components map[string]Component
+type HandlerRegistry struct {
+	mu       sync.RWMutex
+	handlers map[string]TopicHandler
 }
 
-func NewRegistry() *Registry {
-	return &Registry{components: make(map[string]Component)}
+func NewHandlerRegistry() *HandlerRegistry {
+	return &HandlerRegistry{handlers: make(map[string]TopicHandler)}
 }
 
-func (r *Registry) Register(c Component) error {
+func (r *HandlerRegistry) RegisterHandler(c TopicHandler) error {
 	if c == nil {
-		return ErrNilComponent
+		return ErrNilHandler
 	}
 
 	topic := c.Topic()
@@ -43,27 +43,27 @@ func (r *Registry) Register(c Component) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.components[topic]; exists {
+	if _, exists := r.handlers[topic]; exists {
 		return ErrDuplicateTopic
 	}
-	r.components[topic] = c
+	r.handlers[topic] = c
 	return nil
 }
 
-func (r *Registry) GetComponent(topic string) (Component, bool) {
+func (r *HandlerRegistry) HandlerForTopic(topic string) (TopicHandler, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	c, ok := r.components[topic]
+	c, ok := r.handlers[topic]
 	return c, ok
 }
 
-func (r *Registry) Topics() []string {
+func (r *HandlerRegistry) Topics() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	topics := make([]string, 0, len(r.components))
-	for topic := range r.components {
+	topics := make([]string, 0, len(r.handlers))
+	for topic := range r.handlers {
 		topics = append(topics, topic)
 	}
 	sort.Strings(topics)

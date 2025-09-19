@@ -18,19 +18,19 @@ var (
 )
 
 type Consumer struct {
-	reader   *kgo.Reader
-	registry *internalkafka.Registry
+	reader          *kgo.Reader
+	handlerRegistry *internalkafka.HandlerRegistry
 }
 
-func NewConsumer(cfg *config.Config, registry *internalkafka.Registry) (*Consumer, error) {
+func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegistry) (*Consumer, error) {
 	if cfg == nil {
 		return nil, errors.New("kafka: config is nil")
 	}
-	if registry == nil {
+	if handlerRegistry == nil {
 		return nil, errors.New("kafka: registry is nil")
 	}
 
-	topics := registry.Topics()
+	topics := handlerRegistry.Topics()
 	if len(topics) == 0 {
 		return nil, ErrNoTopics
 	}
@@ -70,8 +70,8 @@ func NewConsumer(cfg *config.Config, registry *internalkafka.Registry) (*Consume
 	})
 
 	return &Consumer{
-		reader:   reader,
-		registry: registry,
+		reader:          reader,
+		handlerRegistry: handlerRegistry,
 	}, nil
 }
 
@@ -93,23 +93,23 @@ func (c *Consumer) Run(ctx context.Context) error {
 			continue
 		}
 
-		comp, ok := c.registry.GetComponent(msg.Topic)
+		handler, ok := c.handlerRegistry.HandlerForTopic(msg.Topic)
 		if !ok {
 			logger.GetLogger().WithFields(logger.Fields{
 				"component": "kafka.consumer",
 				"topic":     msg.Topic,
-			}).Warn("no component registered; committing message")
+			}).Warn("no handler registered; committing message")
 			if err := c.reader.CommitMessages(ctx, msg); err != nil {
 				logger.GetLogger().WithField("component", "kafka.consumer").WithError(err).Error("commit failed for unhandled topic")
 			}
 			continue
 		}
 
-		if err := comp.Handle(ctx, msg); err != nil {
+		if err := handler.Handle(ctx, msg); err != nil {
 			logger.GetLogger().WithFields(logger.Fields{
 				"component": "kafka.consumer",
 				"topic":     msg.Topic,
-			}).WithError(err).Error("component handle failed")
+			}).WithError(err).Error("handler failed")
 			// do not commit so the message can be retried
 			continue
 		}

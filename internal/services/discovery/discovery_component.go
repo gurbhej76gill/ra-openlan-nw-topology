@@ -13,24 +13,24 @@ import (
 	"github.com/router-architects/network-topology-service/internal/store"
 )
 
-type Component struct {
-	topic string
-	store *store.DiscoveryStore
+type DiscoveryHandler struct {
+	topic          string
+	discoveryStore *store.DiscoveryStore
 }
 
-func NewComponent(topic string, store *store.DiscoveryStore) (*Component, error) {
+func NewDiscoveryHandler(topic string, discoveryStore *store.DiscoveryStore) (*DiscoveryHandler, error) {
 	if topic == "" {
 		return nil, apperrors.WrapError(apperrors.CodeInternal, "discovery component: topic is required", nil)
 	}
-	if store == nil {
+	if discoveryStore == nil {
 		return nil, apperrors.WrapError(apperrors.CodeInternal, "discovery component: store is nil", nil)
 	}
-	return &Component{topic: topic, store: store}, nil
+	return &DiscoveryHandler{topic: topic, discoveryStore: discoveryStore}, nil
 }
 
-func (c *Component) Topic() string { return c.topic }
+func (h *DiscoveryHandler) Topic() string { return h.topic }
 
-func (c *Component) Handle(ctx context.Context, msg kgo.Message) error {
+func (h *DiscoveryHandler) Handle(ctx context.Context, msg kgo.Message) error {
 	_ = ctx
 
 	var evt domain.DiscoveryEvent
@@ -42,7 +42,7 @@ func (c *Component) Handle(ctx context.Context, msg kgo.Message) error {
 		return apperrors.WrapError(apperrors.CodeInvalidInput, "discovery event missing service type", nil)
 	}
 
-	c.store.Upsert(evt)
+	h.discoveryStore.Upsert(evt)
 
 	logger.GetLogger().WithFields(logger.Fields{
 		"component": "service.discovery",
@@ -53,4 +53,4 @@ func (c *Component) Handle(ctx context.Context, msg kgo.Message) error {
 	return nil
 }
 
-var _ kafkarouter.Component = (*Component)(nil)
+var _ kafkarouter.TopicHandler = (*DiscoveryHandler)(nil)
