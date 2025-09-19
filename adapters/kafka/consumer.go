@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ErrNoTopics = errors.New("kafka: no topics registered")
+	ErrNoTopics  = errors.New("kafka: no topics registered")
 	ErrNoBrokers = errors.New("kafka: no brokers configured")
 )
 
@@ -93,7 +93,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 			continue
 		}
 
-		comp, ok := c.registry.ComponentFor(msg.Topic)
+		comp, ok := c.registry.GetComponent(msg.Topic)
 		if !ok {
 			logger.GetLogger().WithFields(logger.Fields{
 				"component": "kafka.consumer",
