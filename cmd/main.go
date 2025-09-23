@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
+	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/client"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -16,6 +19,7 @@ import (
 	"github.com/router-architects/network-topology-service/internal/kafka"
 	"github.com/router-architects/network-topology-service/internal/logger"
 	"github.com/router-architects/network-topology-service/internal/repositories"
+	"github.com/router-architects/network-topology-service/internal/security"
 	"github.com/router-architects/network-topology-service/internal/services"
 	discoverycomponent "github.com/router-architects/network-topology-service/internal/services/discovery"
 	"github.com/router-architects/network-topology-service/internal/store"
@@ -65,6 +69,28 @@ func main() {
 
 	svcDiscoveryStore := store.NewDiscoveryStore()
 
+	tokenValidationClient := client.New()
+	tokenValidationClient.SetTimeout(5 * time.Second)
+	if cfg.TokenValidationCACert != "" {
+		pemBytes, err := os.ReadFile(cfg.TokenValidationCACert)
+		if err != nil {
+			logger.GetLogger().WithError(err).Fatal("failed to read token validation CA cert")
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pemBytes) {
+			logger.GetLogger().Fatal("failed to parse token validation CA cert")
+		}
+		tokenValidationClient.TLSConfig().RootCAs = pool
+	}
+
+	tokenValidator := security.NewTokenValidator(
+		svcDiscoveryStore,
+		tokenValidationClient,
+		security.ValidatorConfig{
+			Timeout: 3 * time.Second,
+		},
+	)
+
 	cmdProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer")
@@ -106,6 +132,7 @@ func main() {
 		APIKey:         cfg.APIKey,
 		TopologyWindow: cfg.TopologyWindow,
 		TopologyDrift:  cfg.TopologyDrift,
+		TokenValidator: tokenValidator,
 	}
 
 	http.New(app, deps, th)

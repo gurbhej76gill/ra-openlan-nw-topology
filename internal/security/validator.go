@@ -1,0 +1,128 @@
+package security
+
+import (
+	"context"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/client"
+
+	"github.com/router-architects/network-topology-service/internal/apperrors"
+	"github.com/router-architects/network-topology-service/internal/logger"
+	"github.com/router-architects/network-topology-service/internal/store"
+)
+
+// TokenValidator validates subscription tokens against an upstream security service.
+type TokenValidator interface {
+	Validate(ctx context.Context, token string) error
+}
+
+// ValidatorConfig tunes runtime behavior of the OWSEC token validator.
+type ValidatorConfig struct {
+	Timeout             time.Duration
+	InternalServiceName string
+}
+
+type owsecValidator struct {
+	store        *store.DiscoveryStore
+	client       *client.Client
+	timeout      time.Duration
+	internalName string
+}
+
+const (
+	defaultTimeout = 3 * time.Second
+	owsecService   = "owsec"
+)
+
+// NewTokenValidator constructs a TokenValidator that calls the owsec /validateSubToken API.
+func NewTokenValidator(store *store.DiscoveryStore, client *client.Client, cfg ValidatorConfig) TokenValidator {
+	timeout := cfg.Timeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+
+	internalName := strings.TrimSpace(cfg.InternalServiceName)
+	if internalName == "" {
+		internalName = "nw-topology-service"
+	}
+
+	return &owsecValidator{
+		store:        store,
+		client:       client,
+		timeout:      timeout,
+		internalName: internalName,
+	}
+}
+
+func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
+	token := strings.TrimSpace(rawToken)
+	if token == "" {
+		return apperrors.WrapError(apperrors.CodeUnauthorized, "missing subscription token", nil)
+	}
+
+	if v.store == nil || v.client == nil {
+		return apperrors.WrapError(apperrors.CodeInternal, "token validator not configured", nil)
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	evt, ok := v.store.Get(owsecService)
+	if !ok {
+		return apperrors.WrapError(apperrors.CodeNotFound, "not-ready", nil)
+	}
+
+	endpoint := strings.TrimSpace(evt.PrivateEndPoint)
+	if endpoint == "" {
+		return apperrors.WrapError(apperrors.CodeUnauthorized, "owsec discovery event missing private endpoint", nil)
+	}
+
+	apiKey := strings.TrimSpace(evt.Key)
+	if apiKey == "" {
+		return apperrors.WrapError(apperrors.CodeUnauthorized, "owsec discovery event missing key", nil)
+	}
+
+	validateURL := strings.TrimSuffix(endpoint, "/") + "/api/v1/validateSubToken?token=" + url.QueryEscape(token)
+
+	authHeader := token
+	if !strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+		authHeader = "Bearer " + authHeader
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, v.timeout)
+	defer cancel()
+
+	resp, err := v.client.R().
+		SetContext(reqCtx).
+		SetTimeout(v.timeout).
+		SetHeader(fiber.HeaderAccept, "application/json").
+		SetHeader("X-API-KEY", apiKey).
+		SetHeader("X-INTERNAL-NAME", v.internalName).
+		SetHeader(fiber.HeaderAuthorization, authHeader).
+		Get(validateURL)
+	if err != nil {
+		logger.GetLogger().WithFields(logger.Fields{
+			"service":   owsecService,
+			"url":       validateURL,
+			"operation": "validateSubToken",
+		}).WithError(err).Error("validateSubToken request failed")
+		return apperrors.WrapError(apperrors.CodeUnauthorized, "unauthorized", err)
+	}
+	defer resp.Close()
+
+	if resp.StatusCode() != fiber.StatusOK {
+		logger.GetLogger().WithFields(logger.Fields{
+			"service":   owsecService,
+			"url":       validateURL,
+			"httpCode":  resp.StatusCode(),
+			"operation": "validateSubToken",
+		}).Error("validateSubToken rejected request")
+		return apperrors.WrapError(apperrors.CodeUnauthorized, "unauthorized", nil)
+	}
+
+	return nil
+}
