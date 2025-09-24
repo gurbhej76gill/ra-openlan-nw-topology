@@ -112,7 +112,7 @@ func main() {
 
 	consumer, err := kafkaadapter.NewConsumer(cfg, handlerRegistry)
 	if err != nil {
-		logger.GetLogger().WithError(err).Fatal("failed to init kafka consumer")
+		logger.GetLogger().WithError(err).Info("failed to init kafka consumer")
 	}
 
 	lifecycleService := services.NewLifecycleService(cfg, lifecycleProducer)
@@ -140,11 +140,13 @@ func main() {
 
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
-	go func() {
-		if err := consumer.Run(runCtx); err != nil {
-			logger.GetLogger().WithError(err).Error("kafka consumer stopped")
-		}
-	}()
+	if consumer != nil {
+		go func() {
+			if err := consumer.Run(runCtx); err != nil {
+				logger.GetLogger().WithError(err).Error("kafka consumer stopped")
+			}
+		}()
+	}
 	lifecycleService.Start(runCtx)
 
 	err = (&deps).Start(app, *cfg, *pool)
@@ -155,5 +157,7 @@ func main() {
 	runCancel()
 	_ = app.Shutdown()
 	_ = cmdProducer.Close()
-	_ = consumer.Close()
+	if consumer != nil {
+		_ = consumer.Close()
+	}
 }
