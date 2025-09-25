@@ -42,3 +42,23 @@ COPY certs /app/certs
 USER nonroot:nonroot
 EXPOSE 8080
 ENTRYPOINT ["/app/network-topology-service"]
+
+############################
+# Runtime (Alpine dev shell)
+############################
+FROM alpine:3.20 AS runtime-alpine
+
+# (Optional) bash; alpine already has /bin/sh (ash)
+RUN apk add --no-cache ca-certificates bash curl
+
+WORKDIR /app
+ARG APP_NAME=network-topology-service
+COPY --from=builder "/out/${APP_NAME}" "/app/${APP_NAME}"
+COPY certs /app/certs
+
+# Drop privileges by creating a user if you like:
+RUN adduser -D -u 65532 appuser
+USER appuser
+
+EXPOSE 8080
+ENTRYPOINT ["/app/network-topology-service"]
