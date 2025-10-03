@@ -104,24 +104,35 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 		SetHeader("X-INTERNAL-NAME", v.internalName).
 		SetHeader(fiber.HeaderAuthorization, authHeader).
 		Get(validateURL)
-	if err != nil {
-		logger.GetLogger().WithFields(logger.Fields{
-			"service":   owsecService,
-			"url":       validateURL,
-			"operation": "validateSubToken",
-		}).WithError(err).Error("validateSubToken request failed")
-		return apperrors.WrapError(apperrors.CodeUnauthorized, "unauthorized", err)
-	}
-	defer resp.Close()
 
-	if resp.StatusCode() != fiber.StatusOK {
-		logger.GetLogger().WithFields(logger.Fields{
-			"service":   owsecService,
-			"url":       validateURL,
-			"httpCode":  resp.StatusCode(),
-			"operation": "validateSubToken",
-		}).Error("validateSubToken rejected request")
-		return apperrors.WrapError(apperrors.CodeUnauthorized, "unauthorized", nil)
+	if err != nil || resp.StatusCode() != fiber.StatusOK {
+		validateURL := strings.TrimSuffix(endpoint, "/") + "/api/v1/validateToken?token=" + url.QueryEscape(token)
+		resp, err := v.client.R().
+			SetContext(reqCtx).
+			SetTimeout(v.timeout).
+			SetHeader(fiber.HeaderAccept, "application/json").
+			SetHeader("X-API-KEY", apiKey).
+			SetHeader("X-INTERNAL-NAME", v.internalName).
+			SetHeader(fiber.HeaderAuthorization, authHeader).
+			Get(validateURL)
+		if err != nil {
+			logger.GetLogger().WithFields(logger.Fields{
+				"service":   owsecService,
+				"url":       validateURL,
+				"operation": "validateSubToken",
+			}).WithError(err).Error("validateSubToken request failed")
+			return apperrors.WrapError(apperrors.CodeUnauthorized, "unauthorized", err)
+		}
+		defer resp.Close()
+		if resp.StatusCode() != fiber.StatusOK {
+			logger.GetLogger().WithFields(logger.Fields{
+				"service":   owsecService,
+				"url":       validateURL,
+				"httpCode":  resp.StatusCode(),
+				"operation": "validateSubToken",
+			}).Error("validateSubToken rejected request")
+			return apperrors.WrapError(apperrors.CodeUnauthorized, "unauthorized", nil)
+		}
 	}
 
 	return nil
