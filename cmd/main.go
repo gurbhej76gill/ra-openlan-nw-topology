@@ -9,7 +9,6 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/natefinch/lumberjack.v2"
 
 	kafkaadapter "github.com/router-architects/network-topology-service/adapters/kafka"
 	"github.com/router-architects/network-topology-service/adapters/postgres"
@@ -32,15 +31,17 @@ func main() {
 	}
 
 	// logrus + lumberjack
-	ll := &lumberjack.Logger{
-		Filename:   cfg.LogPath,
-		MaxSize:    cfg.LogMaxSizeMB,
-		MaxBackups: cfg.LogMaxBackups,
-		MaxAge:     cfg.LogMaxAgeDays,
-		Compress:   true,
-	}
+	// ll := &lumberjack.Logger{
+	// 	Filename:   cfg.LogPath,
+	// 	MaxSize:    cfg.LogMaxSizeMB,
+	// 	MaxBackups: cfg.LogMaxBackups,
+	// 	MaxAge:     cfg.LogMaxAgeDays,
+	// 	Compress:   true,
+	// }
+	// log.SetOutput(ll)
 	log := logrus.New()
-	log.SetOutput(ll)
+	log.SetOutput(os.Stdout)
+
 	level, _ := logrus.ParseLevel(cfg.LogLevel)
 	log.SetLevel(level)
 	log.SetFormatter(&logrus.JSONFormatter{TimestampFormat: time.RFC3339Nano})
