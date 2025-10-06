@@ -52,8 +52,10 @@ func APIKeyAuth(expected string, validator security.TokenValidator) fiber.Handle
 
 				if appErr, ok := err.(*apperrors.Error); ok {
 					status := fiber.StatusUnauthorized
-					if appErr.Code == apperrors.CodeInternal || appErr.Code == apperrors.CodeNotFound {
+					if appErr.Code == apperrors.CodeInternal {
 						status = fiber.StatusInternalServerError
+					} else if appErr.Code == apperrors.CodeNotFound {
+						status = fiber.StatusNotFound
 					}
 					return c.Status(status).JSON(errBody(appErr.Code, appErr.Message))
 				}
