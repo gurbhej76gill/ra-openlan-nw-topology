@@ -105,9 +105,13 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 		SetHeader(fiber.HeaderAuthorization, authHeader).
 		Get(validateURL)
 
-	if err != nil || resp.StatusCode() != fiber.StatusOK {
+	if resp != nil {
+		defer resp.Close()
+	}
+
+	if err != nil || resp == nil || resp.StatusCode() != fiber.StatusOK {
 		validateURL := strings.TrimSuffix(endpoint, "/") + "/api/v1/validateToken?token=" + url.QueryEscape(token)
-		resp, err := v.client.R().
+		fallbackResp, err := v.client.R().
 			SetContext(reqCtx).
 			SetTimeout(v.timeout).
 			SetHeader(fiber.HeaderAccept, "application/json").
@@ -115,22 +119,28 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 			SetHeader("X-INTERNAL-NAME", v.internalName).
 			SetHeader(fiber.HeaderAuthorization, authHeader).
 			Get(validateURL)
+		if fallbackResp != nil {
+			defer fallbackResp.Close()
+		}
 		if err != nil {
 			logger.GetLogger().WithFields(logger.Fields{
 				"service":   owsecService,
 				"url":       validateURL,
-				"operation": "validateSubToken",
-			}).WithError(err).Error("validateSubToken request failed")
+				"operation": "validateToken",
+			}).WithError(err).Error("validateToken request failed")
 			return apperrors.WrapError(apperrors.CodeUnauthorized, "unauthorized", err)
 		}
-		defer resp.Close()
-		if resp.StatusCode() != fiber.StatusOK {
+		if fallbackResp == nil || fallbackResp.StatusCode() != fiber.StatusOK {
+			httpCode := 0
+			if fallbackResp != nil {
+				httpCode = fallbackResp.StatusCode()
+			}
 			logger.GetLogger().WithFields(logger.Fields{
 				"service":   owsecService,
 				"url":       validateURL,
-				"httpCode":  resp.StatusCode(),
-				"operation": "validateSubToken",
-			}).Error("validateSubToken rejected request")
+				"httpCode":  httpCode,
+				"operation": "validateToken",
+			}).Error("validateToken rejected request")
 			return apperrors.WrapError(apperrors.CodeUnauthorized, "unauthorized", nil)
 		}
 	}
