@@ -30,15 +30,6 @@ func main() {
 		panic(err)
 	}
 
-	// logrus + lumberjack
-	// ll := &lumberjack.Logger{
-	// 	Filename:   cfg.LogPath,
-	// 	MaxSize:    cfg.LogMaxSizeMB,
-	// 	MaxBackups: cfg.LogMaxBackups,
-	// 	MaxAge:     cfg.LogMaxAgeDays,
-	// 	Compress:   true,
-	// }
-	// log.SetOutput(ll)
 	log := logrus.New()
 	log.SetOutput(os.Stdout)
 

@@ -73,7 +73,7 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 
 	evt, ok := v.store.Get(owsecService)
 	if !ok {
-		return apperrors.WrapError(apperrors.CodeNotFound, "not-ready", nil)
+		return apperrors.WrapError(apperrors.CodeNotFound, "NOT_FOUND", nil)
 	}
 
 	endpoint := strings.TrimSpace(evt.PrivateEndPoint)
