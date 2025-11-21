@@ -2,12 +2,12 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/router-architects/network-topology-service/internal/adapters/serviceclient"
 	"github.com/router-architects/network-topology-service/internal/logger"
 	"github.com/router-architects/network-topology-service/internal/models"
 	"github.com/router-architects/network-topology-service/internal/repositories"
@@ -15,15 +15,16 @@ import (
 
 // Service interface
 type TopologyService interface {
-	BuildTopology(ctx context.Context, boardID string, at *time.Time, window, drift time.Duration) (models.Topology, error)
+	BuildTopology(ctx context.Context, boardID string, params models.TimepointsQuery) (models.Topology, error)
 }
 
 type topologyService struct {
-	repo repositories.TopologyRepository
+	repo   repositories.TopologyRepository
+	client serviceclient.OpenAPIRequestClient
 }
 
-func NewTopologyService(repo repositories.TopologyRepository) TopologyService {
-	return &topologyService{repo: repo}
+func NewTopologyService(repo repositories.TopologyRepository, client serviceclient.OpenAPIRequestClient) TopologyService {
+	return &topologyService{repo: repo, client: client}
 }
 
 // ---------- Input JSON structures (ssid_data, device_info) ----------
@@ -58,7 +59,7 @@ type deviceInfo struct {
 type rowParsed struct {
 	ts     int64
 	serial string
-	faces  []ssidFace
+	faces  []models.SSIDData
 }
 
 type faceKey struct {
@@ -74,36 +75,28 @@ type faceOut struct {
 }
 
 // main method
-func (s *topologyService) BuildTopology(ctx context.Context, boardID string, at *time.Time, window, drift time.Duration) (models.Topology, error) {
-	log := logger.GetLogger().WithFields(logger.Fields{"boardId": boardID})
-
-	// 1) Resolve effective "at"
-	var atTs int64
-	mode := "latest"
-	if at == nil || at.IsZero() {
-		maxTs, err := s.repo.LatestTimestamp(ctx, boardID)
-		if err != nil || maxTs == 0 {
-			if err != nil {
-				log.WithError(err).Warn("no latest timestamp for board")
-			}
-			return s.emptyResult(boardID, 0, 0, 0, mode, drift), nil
-		}
-		atTs = maxTs
-	} else {
-		atTs = at.UTC().Unix()
-		mode = "at"
+func (s *topologyService) BuildTopology(ctx context.Context, boardID string, params models.TimepointsQuery) (models.Topology, error) {
+	log := logger.ForFunctionality("TOPOLOGY-SERVICE")
+	if log != nil {
+		log = log.WithFields(logger.Fields{"boardId": boardID})
 	}
 
-	start := atTs - int64(window.Seconds()) - int64(drift.Seconds())
-	end := atTs
+	end := time.Now().Unix()
 
-	rows, err := s.repo.FetchTimepoints(ctx, boardID, start, end)
+	rows, err := s.client.GetTimepoints(ctx, models.TimepointRequest{
+		BoardID:        boardID,
+		FromDate:       StringPtr(params.FromDate),
+		EndDate:        StringPtr(params.EndDate),
+		MaxRecords:     IntrPtr(params.MaxRecords),
+		StatsOnly:      false,
+		PointsOnly:     true,
+		PointStatsOnly: false,
+	})
 	if err != nil {
-		log.WithError(err).Error("fetch timepoints failed")
+		if log != nil {
+			log.WithError(err).Error("fetch timepoints failed")
+		}
 		return models.Topology{}, err
-	}
-	if len(rows) == 0 {
-		return s.emptyResult(boardID, atTs, start, end, mode, drift), nil
 	}
 
 	// 2) Parse rows newest->older, collect:
@@ -115,22 +108,15 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, at 
 	knownBSSID := map[string]struct{}{}
 
 	for _, r := range rows {
+
 		serial := strings.TrimSpace(r.Serial)
-		// prefer device_info.serialNumber if present
-		var di deviceInfo
-		if r.DeviceInfo != "" {
-			_ = json.Unmarshal([]byte(r.DeviceInfo), &di)
-			if di.SerialNumber != "" {
-				serial = di.SerialNumber
-			}
+		if sn := strings.TrimSpace(r.DeviceInfo.SerialNumber); sn != "" {
+			serial = sn
 		}
+
 		serial = strings.TrimSpace(serial)
 
-		var faces []ssidFace
-		if err := json.Unmarshal([]byte(r.SSIDData), &faces); err != nil {
-			log.WithError(err).WithField("rowID", r.ID).Warn("failed to parse ssid_data")
-			continue
-		}
+		faces := r.SSIDData
 		parsed = append(parsed, rowParsed{ts: r.Timestamp, serial: serial, faces: faces})
 
 		for _, f := range faces {
@@ -350,43 +336,27 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, at 
 	out := models.Topology{
 		BoardID:   boardID,
 		Timestamp: time.Unix(end, 0).UTC().Format(time.RFC3339),
-		Meta: models.TopoMeta{
-			Mode:                  mode,
-			WindowStart:           time.Unix(start, 0).UTC().Format(time.RFC3339),
-			WindowEnd:             time.Unix(end, 0).UTC().Format(time.RFC3339),
-			DriftAllowanceSeconds: int(drift.Seconds()),
-			ServedFrom:            "db",
-		},
-		Nodes:    devs,
-		Edges:    models.TopoEdges{Wired: []any{}, Mesh: meshEdges},
-		External: []any{},
+		Nodes:     devs,
+		Edges:     models.TopoEdges{Wired: []any{}, Mesh: meshEdges},
+		External:  []any{},
+	}
+	if log != nil {
+		log.WithFields(logger.Fields{
+			"nodes":      len(out.Nodes),
+			"mesh_edges": len(out.Edges.Mesh),
+		}).Trace("topology built successfully")
 	}
 	return out, nil
 }
 
-// empty result with meta prefilled
-func (s *topologyService) emptyResult(boardID string, at, start, end int64, mode string, drift time.Duration) models.Topology {
-	out := models.Topology{
-		BoardID: boardID,
-		Meta: models.TopoMeta{
-			Mode:                  mode,
-			ServedFrom:            "db",
-			DriftAllowanceSeconds: int(drift.Seconds()),
-		},
-		Nodes:    []models.Device{},
-		Edges:    models.TopoEdges{Wired: []any{}, Mesh: []models.MeshEdge{}},
-		External: []any{},
-	}
-	if at != 0 {
-		out.Timestamp = time.Unix(at, 0).UTC().Format(time.RFC3339)
-	}
-	if start != 0 || end != 0 {
-		out.Meta.WindowStart = time.Unix(start, 0).UTC().Format(time.RFC3339)
-		out.Meta.WindowEnd = time.Unix(end, 0).UTC().Format(time.RFC3339)
-	}
-	return out
-}
-
 func normMAC(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
+}
+
+func StringPtr(s string) *string {
+	return &s
+}
+
+func IntrPtr(i int) *int {
+	return &i
 }

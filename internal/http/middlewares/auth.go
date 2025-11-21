@@ -2,65 +2,57 @@ package middlewares
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/router-architects/network-topology-service/internal/apperrors"
 	"github.com/router-architects/network-topology-service/internal/logger"
 	"github.com/router-architects/network-topology-service/internal/security"
-
-	"github.com/gofiber/fiber/v3"
 )
 
 func APIKeyAuth(expected string, validator security.TokenValidator) fiber.Handler {
 	return func(c fiber.Ctx) error {
+		log := logger.ForFunctionality("MIDDLEWARE")
 		if expected == "" {
 			// no auth configured -> deny
-			return c.Status(fiber.StatusUnauthorized).JSON(errBody(apperrors.CodeUnauthorized, "missing API key"))
+			return writeAuthError(c, apperrors.CodeUnauthorized)
 		}
 		got := string(c.Request().Header.Peek("X-API-KEY"))
 		internalHeader := c.Get("X-INTERNAL-NAME")
 		if internalHeader != "" {
 			if got == "" || got != expected {
-				logger.GetLogger().WithFields(logger.Fields{
-					"path": c.Path(), "method": c.Method(),
-				}).Warn("unauthorized request")
-				return c.Status(fiber.StatusUnauthorized).JSON(errBody(apperrors.CodeUnauthorized, "unauthorized"))
+				return writeAuthError(c, apperrors.CodeUnauthorized)
 			}
 		} else {
 			if validator == nil {
-				logger.GetLogger().WithFields(logger.Fields{
-					"path": c.Path(), "method": c.Method(),
-				}).Error("token validator not configured")
-				return c.Status(fiber.StatusUnauthorized).JSON(errBody(apperrors.CodeUnauthorized, "unauthorized"))
+				return writeAuthError(c, apperrors.CodeUnauthorized)
 			}
 
-			subToken := c.Query("token")
-			if subToken == "" {
-				subToken = string(c.Request().Header.Peek("X-SUB-TOKEN"))
+			authHeader := c.Get("Authorization", "")
+			if authHeader == "" {
+				return writeAuthError(c, apperrors.CodeUnauthorized)
 			}
-			if subToken == "" {
-				logger.GetLogger().WithFields(logger.Fields{
-					"path": c.Path(), "method": c.Method(),
-				}).Warn("missing subscription token")
-				return c.Status(fiber.StatusUnauthorized).JSON(errBody(apperrors.CodeUnauthorized, "unauthorized"))
+
+			subToken := strings.TrimSpace(authHeader)
+			const bearerPrefix = "Bearer "
+			if strings.HasPrefix(subToken, bearerPrefix) {
+				subToken = strings.TrimSpace(subToken[len(bearerPrefix):])
 			}
 
 			if err := validator.Validate(context.Background(), subToken); err != nil {
-				logger.GetLogger().WithFields(logger.Fields{
-					"path":   c.Path(),
-					"method": c.Method(),
-				}).WithError(err).Warn("subscription token validation failed")
-
-				if appErr, ok := err.(*apperrors.Error); ok {
-					status := fiber.StatusUnauthorized
-					if appErr.Code == apperrors.CodeInternal {
-						status = fiber.StatusInternalServerError
-					} else if appErr.Code == apperrors.CodeNotFound {
-						status = fiber.StatusNotFound
-					}
-					return c.Status(status).JSON(errBody(appErr.Code, appErr.Message))
+				if log != nil {
+					log.WithFields(logger.Fields{
+						"path":   c.Path(),
+						"method": c.Method(),
+					}).WithError(err).Warn("subscription token validation failed")
 				}
 
-				return c.Status(fiber.StatusUnauthorized).JSON(errBody(apperrors.CodeUnauthorized, "unauthorized"))
+				if appErr, ok := err.(*apperrors.Error); ok {
+					return writeAuthError(c, appErr.Code)
+				}
+
+				return writeAuthError(c, apperrors.CodeUnauthorized)
 			}
 		}
 
@@ -68,9 +60,12 @@ func APIKeyAuth(expected string, validator security.TokenValidator) fiber.Handle
 	}
 }
 
-func errBody(code apperrors.ErrorCode, msg string) map[string]any {
-	return map[string]any{"error": map[string]any{
-		"code":    code,
-		"message": msg,
-	}}
+func writeAuthError(c fiber.Ctx, code apperrors.ErrorCode) error {
+	info := apperrors.GetHTTPErrorInfo(code)
+	body := map[string]any{
+		"ErrorCode":        info.Status,
+		"ErrorDescription": fmt.Sprintf("%d: %s", info.Status, info.Description),
+		"ErrorDetails":     c.Method(),
+	}
+	return c.Status(info.Status).JSON(body)
 }

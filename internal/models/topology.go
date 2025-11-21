@@ -4,7 +4,6 @@ package models
 type Topology struct {
 	BoardID   string    `json:"boardId"`
 	Timestamp string    `json:"timestamp"` // RFC3339 UTC
-	Meta      TopoMeta  `json:"meta"`
 	Nodes     []Device  `json:"nodes"`
 	Edges     TopoEdges `json:"edges"`
 	External  []any     `json:"external"`
@@ -59,4 +58,14 @@ type MeshEdge struct {
 	SSID    string `json:"ssid"`
 	Band    string `json:"band"`
 	Channel int    `json:"channel"`
+}
+
+type TimepointsQuery struct {
+	BoardID         string `query:"boardId"`
+	FromDate        string `query:"fromDate"`
+	EndDate         string `query:"endDate"`
+	MaxRecords      int    `query:"maxRecords"`
+	StatsOnly       bool   `query:"statsOnly"`
+	PointsOnly      bool   `query:"pointsOnly"`
+	PointsStatsOnly bool   `query:"pointsStatsOnly"`
 }

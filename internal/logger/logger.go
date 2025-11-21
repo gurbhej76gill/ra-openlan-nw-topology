@@ -58,3 +58,12 @@ func SetLogger(l Logger) { globalLogger = l }
 
 // GetLogger gets the global logger instance (may be nil if not initialized).
 func GetLogger() Logger { return globalLogger }
+
+// ForFunctionality returns the global logger tagged with a functionality label.
+func ForFunctionality(name string) Logger {
+	log := GetLogger()
+	if log == nil || name == "" {
+		return log
+	}
+	return log.WithField("functionality", name)
+}

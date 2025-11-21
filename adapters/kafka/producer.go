@@ -17,12 +17,12 @@ type producer struct {
 }
 
 func NewProducerForTopic(cfg *config.Config, topic string) (*producer, error) {
-	if log := logger.GetLogger(); log != nil {
+	if log := logger.ForFunctionality("KAFKA-PRODUCER"); log != nil {
 		log.WithFields(logger.Fields{
 			"component": "kafka.producer",
 			"topic":     topic,
 			"brokers":   cfg.KafkaBrokers,
-		}).Info("initializing kafka producer")
+		}).Trace("initializing kafka producer")
 	}
 
 	tr := &kafka.Transport{
@@ -42,11 +42,11 @@ func NewProducerForTopic(cfg *config.Config, topic string) (*producer, error) {
 		MaxAttempts:            12,
 	}
 
-	if log := logger.GetLogger(); log != nil {
+	if log := logger.ForFunctionality("KAFKA-PRODUCER"); log != nil {
 		log.WithFields(logger.Fields{
 			"component": "kafka.producer",
 			"topic":     topic,
-		}).Info("kafka producer ready")
+		}).Trace("kafka producer ready")
 	}
 
 	return &producer{w: w, cfg: cfg}, nil
@@ -58,15 +58,19 @@ func (p *producer) Publish(ctx context.Context, key string, payload []byte) erro
 		Value: payload,
 		Time:  time.Now(),
 	}
-	logger.GetLogger().WithFields(logger.Fields{
-		"component": "kafka.producer",
-		"uuid":      key,
-		"size":      len(payload),
-	}).Tracef("kafka publish with payload: %s", string(payload))
+	if log := logger.ForFunctionality("KAFKA-PRODUCER"); log != nil {
+		log.WithFields(logger.Fields{
+			"component": "kafka.producer",
+			"uuid":      key,
+			"size":      len(payload),
+		}).Tracef("kafka publish with payload: %s", string(payload))
+	}
 
 	err := p.w.WriteMessages(ctx, msg)
 	if err != nil {
-		logger.GetLogger().WithFields(logger.Fields{"err": err, "uuid": key}).Error("Publish failed.", err)
+		if log := logger.ForFunctionality("KAFKA-PRODUCER"); log != nil {
+			log.WithFields(logger.Fields{"err": err, "uuid": key}).Error("Publish failed.", err)
+		}
 	}
 	return err
 }

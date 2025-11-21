@@ -7,7 +7,7 @@ require (
 	github.com/gofiber/fiber/v3 v3.0.0-beta.4
 	github.com/jackc/pgx/v5 v5.5.4
 	github.com/sirupsen/logrus v1.9.3
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1
+	// gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require github.com/pierrec/lz4/v4 v4.1.15 // indirect

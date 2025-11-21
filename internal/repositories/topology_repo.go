@@ -11,7 +11,7 @@ import (
 
 type TopologyRepository interface {
 	LatestTimestamp(ctx context.Context, boardID string) (int64, error)
-	FetchTimepoints(ctx context.Context, boardID string, start, end int64) ([]models.TimepointRow, error)
+	FetchTimepoints(ctx context.Context, boardID string, start, end int64) ([]models.TimepointRowDB, error)
 }
 
 type pgRepo struct {
@@ -34,7 +34,7 @@ func (r *pgRepo) LatestTimestamp(ctx context.Context, boardID string) (int64, er
 	return maxTs, nil
 }
 
-func (r *pgRepo) FetchTimepoints(ctx context.Context, boardID string, start, end int64) ([]models.TimepointRow, error) {
+func (r *pgRepo) FetchTimepoints(ctx context.Context, boardID string, start, end int64) ([]models.TimepointRowDB, error) {
 	const q = `
 SELECT id, boardid, "timestamp", ssid_data, device_info, serialnumber
 FROM public.timepoints
@@ -46,14 +46,14 @@ ORDER BY "timestamp" DESC`
 	}
 	defer rows.Close()
 
-	var out []models.TimepointRow
+	var out []models.TimepointRowDB
 	for rows.Next() {
 		var rID, rBoard, rSSID, rDev, rSerial string
 		var rTs int64
 		if err := rows.Scan(&rID, &rBoard, &rTs, &rSSID, &rDev, &rSerial); err != nil {
 			return nil, err
 		}
-		out = append(out, models.TimepointRow{
+		out = append(out, models.TimepointRowDB{
 			ID:         rID,
 			BoardID:    rBoard,
 			Timestamp:  rTs,

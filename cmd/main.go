@@ -12,6 +12,7 @@ import (
 
 	kafkaadapter "github.com/router-architects/network-topology-service/adapters/kafka"
 	"github.com/router-architects/network-topology-service/adapters/postgres"
+	"github.com/router-architects/network-topology-service/internal/adapters/serviceclient"
 	"github.com/router-architects/network-topology-service/internal/config"
 	"github.com/router-architects/network-topology-service/internal/http"
 	"github.com/router-architects/network-topology-service/internal/http/handlers"
@@ -33,12 +34,18 @@ func main() {
 	log := logrus.New()
 	log.SetOutput(os.Stdout)
 
-	level, _ := logrus.ParseLevel(cfg.LogLevel)
+	level, err := logrus.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		level = logrus.InfoLevel
+	}
 	log.SetLevel(level)
-	log.SetFormatter(&logrus.JSONFormatter{TimestampFormat: time.RFC3339Nano})
+	if cfg.LogJSON {
+		log.SetFormatter(&logrus.JSONFormatter{TimestampFormat: time.RFC3339Nano})
+	} else {
+		log.SetFormatter(&logger.LegacyFormatter{TimestampFormat: "2006-01-02 15:04:05.000"})
+	}
 	entry := logrus.NewEntry(log)
-	logger.SetLogger(logger.LogrusAdapter{entry})
-	logger.SetLogger(logger.GetLogger().WithField("app", cfg.AppName))
+	logger.SetLogger(logger.LogrusAdapter{Entry: entry})
 
 	// pgx pool
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -75,12 +82,16 @@ func main() {
 		tokenValidationClient.TLSConfig().RootCAs = pool
 	}
 
-	tokenValidator := security.NewTokenValidator(
+	OpenAPIRequestClient := serviceclient.NewOpenApiRequest(
 		svcDiscoveryStore,
 		tokenValidationClient,
-		security.ValidatorConfig{
+		serviceclient.OpenAPIRequestConfig{
 			Timeout: 3 * time.Second,
 		},
+	)
+
+	tokenValidator := security.NewTokenValidator(
+		OpenAPIRequestClient,
 	)
 
 	cmdProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
@@ -104,14 +115,18 @@ func main() {
 
 	consumer, err := kafkaadapter.NewConsumer(cfg, handlerRegistry)
 	if err != nil {
-		logger.GetLogger().WithError(err).Info("failed to init kafka consumer")
+		logger.GetLogger().WithError(err).Warn("failed to init kafka consumer")
 	}
 
 	lifecycleService := services.NewLifecycleService(cfg, lifecycleProducer)
 
 	// wire
+	timepointsClient := client.New()
+	if cfg.RequestTimeout > 0 {
+		timepointsClient.SetTimeout(cfg.RequestTimeout)
+	}
 	repo := repositories.NewTopologyRepository(pool)
-	svc := services.NewTopologyService(repo)
+	svc := services.NewTopologyService(repo, OpenAPIRequestClient)
 
 	app := fiber.New(fiber.Config{
 		// optional: tune body limits, read/write timeouts are handled by env values for HTTP server if you run behind a reverse proxy
@@ -141,7 +156,7 @@ func main() {
 	}
 	lifecycleService.Start(runCtx)
 
-	err = (&deps).Start(app, *cfg, *pool)
+	err = (&deps).Start(app, *cfg)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to start http server")
 	}

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/router-architects/network-topology-service/internal/apperrors"
 	"github.com/router-architects/network-topology-service/internal/config"
@@ -44,7 +43,7 @@ func New(app *fiber.App, deps ServerDeps, th *handlers.TopologyHandler) *fiber.A
 	return app
 }
 
-func (s *ServerDeps) Start(app *fiber.App, cfg config.Config, pool pgxpool.Pool) error {
+func (s *ServerDeps) Start(app *fiber.App, cfg config.Config) error {
 
 	crt := cfg.TLS_CERT
 	key := cfg.TLS_KEY
@@ -99,9 +98,6 @@ func (s *ServerDeps) Start(app *fiber.App, cfg config.Config, pool pgxpool.Pool)
 	}
 
 	_ = ln.Close()
-
-	// Close DB pool
-	pool.Close()
 
 	<-shutdownCtx.Done()
 	return nil

@@ -40,7 +40,7 @@ COPY --from=builder "/out/${APP_NAME}" "/app/${APP_NAME}"
 COPY certs /app/certs
 
 USER nonroot:nonroot
-EXPOSE 8080
+EXPOSE 8088
 ENTRYPOINT ["/app/network-topology-service"]
 
 ############################

@@ -82,6 +82,7 @@ func (s *lifecycleService) Start(ctx context.Context) {
 }
 
 func (s *lifecycleService) safePublish(ctx context.Context, ev string) {
+	log := logger.ForFunctionality("LIFECYCLE")
 	evt := lifecycleEvent{
 		Event:           ev,
 		ID:              s.instance.id,
@@ -93,22 +94,28 @@ func (s *lifecycleService) safePublish(ctx context.Context, ev string) {
 	}
 	b, err := json.Marshal(evt)
 	if err != nil {
-		logger.GetLogger().WithError(err).Error("lifecycle: marshal failed")
+		if log != nil {
+			log.WithError(err).Error("lifecycle: marshal failed")
+		}
 		return
 	}
 
 	// use the hash key to keep events for this instance in a stable partition
 	if err := s.pub.Publish(ctx, s.instance.privURI, b); err != nil {
-		logger.GetLogger().WithFields(logger.Fields{
-			"component": "lifecycle",
-			"event":     ev,
-		}).WithError(err).Error("lifecycle publish failed")
+		if log != nil {
+			log.WithFields(logger.Fields{
+				"component": "lifecycle",
+				"event":     ev,
+			}).WithError(err).Error("lifecycle publish failed")
+		}
 		return
 	}
-	logger.GetLogger().WithFields(logger.Fields{
-		"component": "lifecycle",
-		"event":     ev,
-	}).Trace("lifecycle event published")
+	if log != nil {
+		log.WithFields(logger.Fields{
+			"component": "lifecycle",
+			"event":     ev,
+		}).Trace("lifecycle event published")
+	}
 }
 
 func sha256Hex(s string) string {

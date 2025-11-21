@@ -1,6 +1,9 @@
 package apperrors
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
+)
 
 // ErrorCode defines common application error codes.
 // Use these to standardize user-facing API response statuses.
@@ -47,4 +50,32 @@ func GetErrorCode(err error) ErrorCode {
 		return appErr.Code
 	}
 	return CodeUnknown
+}
+
+type HTTPErrorInfo struct {
+	Status      int
+	Description string
+}
+
+var errorInfoMap = map[ErrorCode]HTTPErrorInfo{
+	CodeInvalidInput: {Status: http.StatusBadRequest, Description: "Bad request."},
+	CodeUnauthorized: {Status: http.StatusUnauthorized, Description: "Unauthorized."},
+	CodeForbidden:    {Status: http.StatusForbidden, Description: "Forbidden."},
+	CodeNotFound:     {Status: http.StatusNotFound, Description: "Resource does not exist."},
+	CodeConflict:     {Status: http.StatusConflict, Description: "Conflict."},
+	CodeInternal:     {Status: http.StatusInternalServerError, Description: "Internal Server Error."},
+	CodeUnknown:      {Status: http.StatusInternalServerError, Description: "Internal Server Error."},
+}
+
+var defaultHTTPErrorInfo = HTTPErrorInfo{
+	Status:      http.StatusInternalServerError,
+	Description: "Internal Server Error.",
+}
+
+// GetHTTPErrorInfo maps an ErrorCode to HTTP status/description pair.
+func GetHTTPErrorInfo(code ErrorCode) HTTPErrorInfo {
+	if info, ok := errorInfoMap[code]; ok {
+		return info
+	}
+	return defaultHTTPErrorInfo
 }

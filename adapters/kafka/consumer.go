@@ -39,7 +39,7 @@ func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegis
 		return nil, ErrNoBrokers
 	}
 
-	if log := logger.GetLogger(); log != nil {
+	if log := logger.ForFunctionality("KAFKA-CONSUMER"); log != nil {
 		log.WithFields(logger.Fields{
 			"component": "kafka.consumer",
 			"brokers":   cfg.KafkaBrokers,
@@ -79,12 +79,12 @@ func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegis
 		ReadBackoffMax:        2 * time.Second,
 	})
 
-	if log := logger.GetLogger(); log != nil {
+	if log := logger.ForFunctionality("KAFKA-CONSUMER"); log != nil {
 		log.WithFields(logger.Fields{
 			"component": "kafka.consumer",
 			"group_id":  cfg.KafkaGroupID,
 			"topics":    topics,
-		}).Info("kafka consumer ready")
+		}).Trace("kafka consumer ready")
 	}
 
 	return &Consumer{
@@ -94,14 +94,13 @@ func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegis
 }
 
 func (c *Consumer) Run(ctx context.Context) error {
+	log := logger.ForFunctionality("KAFKA-CONSUMER")
 	for {
 		msg, err := c.reader.FetchMessage(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 				return nil
 			}
-
-			logger.GetLogger().WithField("component", "kafka.consumer").WithError(err).Error("fetch message failed")
 
 			select {
 			case <-time.After(500 * time.Millisecond):
@@ -113,30 +112,29 @@ func (c *Consumer) Run(ctx context.Context) error {
 
 		handler, ok := c.handlerRegistry.HandlerForTopic(msg.Topic)
 		if !ok {
-			logger.GetLogger().WithFields(logger.Fields{
-				"component": "kafka.consumer",
-				"topic":     msg.Topic,
-			}).Warn("no handler registered; committing message")
+			if log != nil {
+				log.WithFields(logger.Fields{
+					"component": "kafka.consumer",
+					"topic":     msg.Topic,
+				}).Warn("no handler registered; committing message")
+			}
 			if err := c.reader.CommitMessages(ctx, msg); err != nil {
-				logger.GetLogger().WithField("component", "kafka.consumer").WithError(err).Error("commit failed for unhandled topic")
 			}
 			continue
 		}
 
 		if err := handler.Handle(ctx, msg); err != nil {
-			logger.GetLogger().WithFields(logger.Fields{
-				"component": "kafka.consumer",
-				"topic":     msg.Topic,
-			}).WithError(err).Error("handler failed")
+			if log != nil {
+				log.WithFields(logger.Fields{
+					"component": "kafka.consumer",
+					"topic":     msg.Topic,
+				}).WithError(err).Error("handler failed")
+			}
 			// do not commit so the message can be retried
 			continue
 		}
 
 		if err := c.reader.CommitMessages(ctx, msg); err != nil {
-			logger.GetLogger().WithFields(logger.Fields{
-				"component": "kafka.consumer",
-				"topic":     msg.Topic,
-			}).WithError(err).Error("commit failed")
 		}
 	}
 }

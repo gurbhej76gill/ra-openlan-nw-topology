@@ -14,9 +14,9 @@ type TopicConfig struct {
 }
 
 type Config struct {
-	AppName     string        `env:"APP_NAME" envDefault:"network-topology-service"`
+	AppName     string        `env:"APP_NAME" envDefault:""`
 	AppEnv      string        `env:"APP_ENV" envDefault:"dev"`
-	HTTPPort    int           `env:"HTTP_PORT" envDefault:"8080"`
+	HTTPPort    int           `env:"HTTP_PORT" envDefault:"8088"`
 	HTTPReadTO  time.Duration `env:"HTTP_READ_TIMEOUT" envDefault:"15s"`
 	HTTPWriteTO time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"15s"`
 
@@ -32,41 +32,45 @@ type Config struct {
 	PGMinConns    int32         `env:"PG_MIN_CONNS" envDefault:"1"`
 	PGMaxLifetime time.Duration `env:"PG_MAX_CONN_LIFETIME" envDefault:"30m"`
 
-	TopologyWindow time.Duration `env:"TOPOLOGY_WINDOW" envDefault:"1h"`
-	TopologyDrift  time.Duration `env:"TOPOLOGY_DRIFT" envDefault:"2m"`
+	TopologyWindow          time.Duration `env:"TOPOLOGY_WINDOW" envDefault:"1h"`
+	TopologyDrift           time.Duration `env:"TOPOLOGY_DRIFT" envDefault:"2m"`
+	TimepointsAPIBaseURL    string        `env:"TIMEPOINTS_API_BASE_URL" envDefault:"https://localhost:16009"`
+	TimepointsAPIMaxRecords int           `env:"TIMEPOINTS_API_MAX_RECORDS" envDefault:"100"`
+	TimepointsAPIToken      string        `env:"TIMEPOINTS_API_TOKEN" envDefault:""`
+	TimepointsServiceType   string        `env:"TIMEPOINTS_SERVICE_TYPE" envDefault:"timepoints-api"`
 
 	// kafka
-	KafkaBrokers         []string      `env:"CGW_KAFKA_BROKERS" envSeparator:","`
-	KafkaTopicCmd        string        `env:"CGW_KAFKA_TOPIC_CMD" envDefault:"CnC"`
-	KafkaTopicResp       string        `env:"CGW_KAFKA_TOPIC_RESP" envDefault:"CnC_Res"`
-	KafkaTopics          []string      `yaml:"CGW_KAFKA_TOPICS" envDefault:"service_events"`
-	KafkaGroupID         string        `env:"CGW_KAFKA_GROUP_ID" envDefault:"cgw-wrapper"`
-	KafkaDialTimeout     time.Duration `env:"CGW_KAFKA_DIAL_TIMEOUT" envDefault:"5s"`
-	KafkaWriteTimeout    time.Duration `env:"CGW_KAFKA_WRITE_TIMEOUT" envDefault:"15s"`
-	KafkaReadTimeout     time.Duration `env:"CGW_KAFKA_READ_TIMEOUT" envDefault:"5s"`
-	KafkaMinBytes        int           `env:"CGW_KAFKA_MIN_BYTES" envDefault:"1"`
-	KafkaMaxBytes        int           `env:"CGW_KAFKA_MAX_BYTES" envDefault:"1048576"`
-	KafkaAllowAutoCreate bool          `env:"CGW_KAFKA_ALLOW_AUTO_CREATE" envDefault:"true"`
-	KafkaTopicLifecycle  string        `env:"CGW_KAFKA_TOPIC_LIFECYCLE" envDefault:"service_events"`
+	KafkaBrokers         []string      `env:"NW_KAFKA_BROKERS" envSeparator:","`
+	KafkaTopicCmd        string        `env:"NW_KAFKA_TOPIC_CMD" envDefault:"CnC"`
+	KafkaTopicResp       string        `env:"NW_KAFKA_TOPIC_RESP" envDefault:"CnC_Res"`
+	KafkaTopics          []string      `yaml:"NW_KAFKA_TOPICS" envDefault:"service_events"`
+	KafkaGroupID         string        `env:"NW_KAFKA_GROUP_ID" envDefault:"cgw-wrapper"`
+	KafkaDialTimeout     time.Duration `env:"NW_KAFKA_DIAL_TIMEOUT" envDefault:"5s"`
+	KafkaWriteTimeout    time.Duration `env:"NW_KAFKA_WRITE_TIMEOUT" envDefault:"15s"`
+	KafkaReadTimeout     time.Duration `env:"NW_KAFKA_READ_TIMEOUT" envDefault:"5s"`
+	KafkaMinBytes        int           `env:"NW_KAFKA_MIN_BYTES" envDefault:"1"`
+	KafkaMaxBytes        int           `env:"NW_KAFKA_MAX_BYTES" envDefault:"1048576"`
+	KafkaAllowAutoCreate bool          `env:"NW_KAFKA_ALLOW_AUTO_CREATE" envDefault:"true"`
+	KafkaTopicLifecycle  string        `env:"NW_KAFKA_TOPIC_LIFECYCLE" envDefault:"service_events"`
 
 	LogPath               string `env:"LOG_PATH" envDefault:"/var/log/app/app.log"`
 	LogMaxSizeMB          int    `env:"LOG_MAX_SIZE_MB" envDefault:"50"`
 	LogMaxBackups         int    `env:"LOG_MAX_BACKUPS" envDefault:"5"`
 	LogMaxAgeDays         int    `env:"LOG_MAX_AGE_DAYS" envDefault:"30"`
 	LogLevel              string `env:"LOG_LEVEL" envDefault:"info"`
-	LogFile               string `env:"CGW_LOG_FILE" envDefault:"cgw-wrapper.log"`
-	LogJSON               bool   `env:"CGW_LOG_JSON" envDefault:"true"`
+	LogFile               string `env:"NW_LOG_FILE" envDefault:"cgw-wrapper.log"`
+	LogJSON               bool   `env:"NW_LOG_JSON" envDefault:"false"`
 	TLS_CERT              string `env:"TLS_CERT"`
 	TLS_KEY               string `env:"TLS_KEY"`
 	TokenValidationCACert string `env:"TOKEN_VALIDATION_CA_CERT"`
 
 	// lifecycle event config
-	PrivateEndpoint   string        `env:"CGW_PRIVATE_ENDPOINT"`
-	PublicEndpoint    string        `env:"CGW_PUBLIC_ENDPOINT"`
-	ServiceType       string        `env:"CGW_SERVICE_TYPE" envDefault:"cgw-rest-2"`
-	LifecycleInterval time.Duration `env:"CGW_LIFECYCLE_INTERVAL" envDefault:"5s"`
-	BuildVersion      string        `env:"CGW_BUILD_VERSION" envDefault:"dev"`
-	RequestTimeout    time.Duration `env:"CGW_REQUEST_TIMEOUT" envDefault:"30s"`
+	PrivateEndpoint   string        `env:"NW_PRIVATE_ENDPOINT"`
+	PublicEndpoint    string        `env:"NW_PUBLIC_ENDPOINT"`
+	ServiceType       string        `env:"NW_SERVICE_TYPE" envDefault:"cgw-rest-2"`
+	LifecycleInterval time.Duration `env:"NW_LIFECYCLE_INTERVAL" envDefault:"5s"`
+	BuildVersion      string        `env:"NW_BUILD_VERSION" envDefault:"dev"`
+	RequestTimeout    time.Duration `env:"NW_REQUEST_TIMEOUT" envDefault:"30s"`
 }
 
 func Load() (*Config, error) {
