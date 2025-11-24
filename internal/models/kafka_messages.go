@@ -8,14 +8,12 @@ import (
 	"github.com/router-architects/network-topology-service/internal/apperrors"
 )
 
-// Outbound message to CGW
 type KafkaCommand struct {
 	UUID    string                 `json:"uuid"`
 	Type    string                 `json:"type"`
 	Payload map[string]interface{} `json:"payload"`
 }
 
-// Inbound response from CGW
 type KafkaResponse struct {
 	UUID            string         `json:"uuid"`
 	ReporterShardID *int           `json:"reporter_shard_id,omitempty"`

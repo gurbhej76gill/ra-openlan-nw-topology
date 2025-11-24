@@ -10,7 +10,6 @@ import (
 
 	"github.com/router-architects/network-topology-service/internal/config"
 	"github.com/router-architects/network-topology-service/internal/logger"
-	// "github.com/router-architects/cgw-wrapper/internal/observability/logx"
 )
 
 type lifecycleService struct {
