@@ -42,17 +42,17 @@ export INTERNAL_RESTAPI_HOST_ROOTCA=./certs/restapi-ca.pem
 
 Build & Run Locally (Go 1.25+)
 ------------------------------
-1) Install deps: `go mod download`.
-2) Build: `go build -o bin/nw-topology ./cmd`.
-3) Run with env set (TLS cert/key are mandatory): `./bin/nw-topology`.
+1) Install deps: `go mod tidy`.
+2) Build: `go build -o bin/nw-topology ./cmd/main.go`.
+3) Run with env set (TLS cert/key are mandatory): `./bin/nw-topology` or `go run ./cmd/main.go`.
 4) Test the API (replace key/board):  
    `curl -k -H "X-API-KEY: $API_KEY" "https://localhost:8088/v1/topology?boardId=<BOARD_ID>&maxRecords=50"`.
 5) Validate: `go test ./...` (also runs during Docker build).
 
 Container Builds
 ----------------
-- Docker: `docker build -t ra-openlan-nw-topology .` then
-  `docker run --rm -p 8088:8088 --env-file settings.local.env ra-openlan-nw-topology`.
+- Docker: `docker build -t network-topology .` then
+  `docker-compose up`.
 - Compose (uses `settings.local.env` and mounted certs): `docker-compose up --build`.
 
 Code Map (quick pointers)
