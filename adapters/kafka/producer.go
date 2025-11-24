@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/router-architects/network-topology-service/internal/config"
-	"github.com/router-architects/network-topology-service/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
 
 	"github.com/segmentio/kafka-go"
 	kgo "github.com/segmentio/kafka-go"

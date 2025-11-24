@@ -6,11 +6,11 @@ import (
 
 	kgo "github.com/segmentio/kafka-go"
 
-	"github.com/router-architects/network-topology-service/internal/apperrors"
-	"github.com/router-architects/network-topology-service/internal/domain"
-	kafkarouter "github.com/router-architects/network-topology-service/internal/kafka"
-	"github.com/router-architects/network-topology-service/internal/logger"
-	"github.com/router-architects/network-topology-service/internal/store"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/domain"
+	kafkarouter "github.com/router-architects/ra-openlan-nw-topology/internal/kafka"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/store"
 )
 
 type DiscoveryHandler struct {

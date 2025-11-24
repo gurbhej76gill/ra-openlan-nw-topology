@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/router-architects/network-topology-service/internal/adapters/serviceclient"
-	"github.com/router-architects/network-topology-service/internal/logger"
-	"github.com/router-architects/network-topology-service/internal/models"
-	"github.com/router-architects/network-topology-service/internal/repositories"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/adapters/serviceclient"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/repositories"
 )
 
 // Service interface

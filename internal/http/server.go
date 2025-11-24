@@ -11,12 +11,12 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/router-architects/network-topology-service/internal/apperrors"
-	"github.com/router-architects/network-topology-service/internal/config"
-	"github.com/router-architects/network-topology-service/internal/http/handlers"
-	"github.com/router-architects/network-topology-service/internal/http/middlewares"
-	"github.com/router-architects/network-topology-service/internal/logger"
-	"github.com/router-architects/network-topology-service/internal/security"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/http/handlers"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/http/middlewares"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/security"
 )
 
 type ServerDeps struct {

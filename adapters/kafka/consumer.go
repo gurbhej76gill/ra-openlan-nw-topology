@@ -7,10 +7,10 @@ import (
 
 	kgo "github.com/segmentio/kafka-go"
 
-	"github.com/router-architects/network-topology-service/internal/apperrors"
-	"github.com/router-architects/network-topology-service/internal/config"
-	internalkafka "github.com/router-architects/network-topology-service/internal/kafka"
-	"github.com/router-architects/network-topology-service/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
+	internalkafka "github.com/router-architects/ra-openlan-nw-topology/internal/kafka"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
 )
 
 var (

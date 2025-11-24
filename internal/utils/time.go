@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/router-architects/network-topology-service/internal/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
 )
 
 func ParseRFC3339OrUTC(s string) (time.Time, error) {

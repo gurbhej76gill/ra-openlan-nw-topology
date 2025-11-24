@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/router-architects/network-topology-service/internal/apperrors"
-	"github.com/router-architects/network-topology-service/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
 )
 
 type Config struct {

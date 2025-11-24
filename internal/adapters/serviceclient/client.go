@@ -9,10 +9,10 @@ import (
 
 	"github.com/gofiber/fiber/v3/client"
 
-	"github.com/router-architects/network-topology-service/internal/apperrors"
-	"github.com/router-architects/network-topology-service/internal/logger"
-	"github.com/router-architects/network-topology-service/internal/models"
-	"github.com/router-architects/network-topology-service/internal/store"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/store"
 )
 
 type OpenAPIRequestClient interface {

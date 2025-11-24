@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/router-architects/network-topology-service/internal/models"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

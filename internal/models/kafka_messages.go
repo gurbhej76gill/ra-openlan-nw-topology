@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/router-architects/network-topology-service/internal/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
 )
 
 type KafkaCommand struct {

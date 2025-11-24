@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/router-architects/network-topology-service/internal/domain"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/domain"
 )
 
 type DiscoveryStore struct {
