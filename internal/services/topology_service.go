@@ -7,10 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/adapters/serviceclient"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/analytics"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/repositories"
 )
 
 // Service interface
@@ -19,12 +18,11 @@ type TopologyService interface {
 }
 
 type topologyService struct {
-	repo   repositories.TopologyRepository
-	client serviceclient.OpenAPIRequestClient
+	client analytics.TimepointClientInterface
 }
 
-func NewTopologyService(repo repositories.TopologyRepository, client serviceclient.OpenAPIRequestClient) TopologyService {
-	return &topologyService{repo: repo, client: client}
+func NewTopologyService(client analytics.TimepointClientInterface) TopologyService {
+	return &topologyService{client: client}
 }
 
 // ---------- Input JSON structures (ssid_data, device_info) ----------

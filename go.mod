@@ -1,10 +1,10 @@
 module github.com/router-architects/ra-openlan-nw-topology
+
 go 1.25.0
 
 require (
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/gofiber/fiber/v3 v3.0.0-beta.4
-	github.com/jackc/pgx/v5 v5.5.4
 	github.com/sirupsen/logrus v1.9.3
 // gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
@@ -17,9 +17,6 @@ require (
 	github.com/gofiber/schema v1.6.0 // indirect
 	github.com/gofiber/utils/v2 v2.0.0-rc.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -31,7 +28,6 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 )

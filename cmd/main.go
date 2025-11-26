@@ -10,18 +10,18 @@ import (
 	"github.com/gofiber/fiber/v3/client"
 	"github.com/sirupsen/logrus"
 
+	serviceclient "github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
 	kafkaadapter "github.com/router-architects/ra-openlan-nw-topology/adapters/kafka"
-	"github.com/router-architects/ra-openlan-nw-topology/adapters/postgres"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/adapters/serviceclient"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
+	discoverycomponent "github.com/router-architects/ra-openlan-nw-topology/internal/discovery"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/analytics"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/security"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/http"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/http/handlers"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/kafka"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/repositories"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/security"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/services"
-	discoverycomponent "github.com/router-architects/ra-openlan-nw-topology/internal/services/discovery"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/services/lifecycle"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/store"
 )
 
@@ -47,25 +47,6 @@ func main() {
 	entry := logrus.NewEntry(log)
 	logger.SetLogger(logger.LogrusAdapter{Entry: entry})
 
-	// pgx pool
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	pool, err := postgres.NewPool(ctx, postgres.Config{
-		Host:            cfg.PGHost,
-		Port:            cfg.PGPort,
-		User:            cfg.PGUser,
-		Password:        cfg.PGPassword,
-		Database:        cfg.PGDatabase,
-		SSLMode:         cfg.PGSSLMode,
-		MaxConns:        cfg.PGMaxConns,
-		MinConns:        cfg.PGMinConns,
-		MaxConnLifetime: cfg.PGMaxLifetime,
-	})
-	if err != nil {
-		logger.GetLogger().WithError(err).Fatal("failed to connect postgres")
-	}
-
 	svcDiscoveryStore := store.NewDiscoveryStore()
 
 	tokenValidationClient := client.New()
@@ -83,7 +64,6 @@ func main() {
 	}
 
 	OpenAPIRequestClient := serviceclient.NewOpenApiRequest(
-		svcDiscoveryStore,
 		tokenValidationClient,
 		serviceclient.OpenAPIRequestConfig{
 			Timeout: 3 * time.Second,
@@ -92,7 +72,9 @@ func main() {
 
 	tokenValidator := security.NewTokenValidator(
 		OpenAPIRequestClient,
+		svcDiscoveryStore,
 	)
+	timepointClient := analytics.NewTimepointClient(OpenAPIRequestClient, svcDiscoveryStore)
 
 	cmdProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
 	if err != nil {
@@ -118,15 +100,9 @@ func main() {
 		logger.GetLogger().WithError(err).Warn("failed to init kafka consumer")
 	}
 
-	lifecycleService := services.NewLifecycleService(cfg, lifecycleProducer)
+	lifecycleService := lifecycle.NewLifecycleService(cfg, lifecycleProducer)
 
-	// wire
-	timepointsClient := client.New()
-	if cfg.RequestTimeout > 0 {
-		timepointsClient.SetTimeout(cfg.RequestTimeout)
-	}
-	repo := repositories.NewTopologyRepository(pool)
-	svc := services.NewTopologyService(repo, OpenAPIRequestClient)
+	svc := services.NewTopologyService(timepointClient)
 
 	app := fiber.New(fiber.Config{
 		// optional: tune body limits, read/write timeouts are handled by env values for HTTP server if you run behind a reverse proxy

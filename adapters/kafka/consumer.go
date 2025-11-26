@@ -7,10 +7,10 @@ import (
 
 	kgo "github.com/segmentio/kafka-go"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
 	internalkafka "github.com/router-architects/ra-openlan-nw-topology/internal/kafka"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 )
 
 var (
@@ -98,6 +98,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 	for {
 		msg, err := c.reader.FetchMessage(ctx)
 		if err != nil {
+			log.WithFields(logger.Fields{"error": err}).Error("err in kafka consumer fetch message")
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 				return nil
 			}

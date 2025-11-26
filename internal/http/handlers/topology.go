@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/services"
 )

@@ -4,19 +4,19 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/domain"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 )
 
 type DiscoveryStore struct {
 	mu                sync.RWMutex
-	byPrivateEndpoint map[string]domain.DiscoveryEvent
+	byPrivateEndpoint map[string]models.DiscoveryEvent
 }
 
 func NewDiscoveryStore() *DiscoveryStore {
-	return &DiscoveryStore{byPrivateEndpoint: make(map[string]domain.DiscoveryEvent)}
+	return &DiscoveryStore{byPrivateEndpoint: make(map[string]models.DiscoveryEvent)}
 }
 
-func (s *DiscoveryStore) Upsert(evt domain.DiscoveryEvent) {
+func (s *DiscoveryStore) Upsert(evt models.DiscoveryEvent) {
 	privateEndpoint := strings.TrimSpace(evt.PrivateEndPoint)
 	svcType := strings.TrimSpace(evt.Type)
 	if privateEndpoint == "" || svcType == "" {
@@ -35,7 +35,7 @@ func (s *DiscoveryStore) Upsert(evt domain.DiscoveryEvent) {
 	s.mu.Unlock()
 }
 
-func (s *DiscoveryStore) Get(serviceType string) []domain.DiscoveryEvent {
+func (s *DiscoveryStore) GetServices(serviceType string) []models.DiscoveryEvent {
 	serviceType = strings.TrimSpace(serviceType)
 	if serviceType == "" {
 		return nil
@@ -43,35 +43,7 @@ func (s *DiscoveryStore) Get(serviceType string) []domain.DiscoveryEvent {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]domain.DiscoveryEvent, 0, len(s.byPrivateEndpoint))
-	for _, evt := range s.byPrivateEndpoint {
-		if strings.EqualFold(evt.Type, serviceType) {
-			out = append(out, evt)
-		}
-	}
-	return out
-}
-
-func (s *DiscoveryStore) Snapshot() map[string]domain.DiscoveryEvent {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	out := make(map[string]domain.DiscoveryEvent, len(s.byPrivateEndpoint))
-	for k, v := range s.byPrivateEndpoint {
-		out[k] = v
-	}
-	return out
-}
-
-func (s *DiscoveryStore) GetServices(serviceType string) []domain.DiscoveryEvent {
-	serviceType = strings.TrimSpace(serviceType)
-	if serviceType == "" {
-		return nil
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	out := make([]domain.DiscoveryEvent, 0, len(s.byPrivateEndpoint))
+	out := make([]models.DiscoveryEvent, 0, len(s.byPrivateEndpoint))
 	for _, evt := range s.byPrivateEndpoint {
 		if strings.EqualFold(evt.Type, serviceType) {
 			out = append(out, evt)

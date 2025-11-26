@@ -9,14 +9,6 @@ type Topology struct {
 	External  []any     `json:"external"`
 }
 
-type TopoMeta struct {
-	Mode                  string `json:"mode"`                    // "latest" if at omitted; "at" otherwise
-	WindowStart           string `json:"window_start"`            // RFC3339 UTC
-	WindowEnd             string `json:"window_end"`              // RFC3339 UTC
-	DriftAllowanceSeconds int    `json:"drift_allowance_seconds"` // e.g., 120
-	ServedFrom            string `json:"served_from"`             // "db"
-}
-
 // Device groups faces by device serial.
 type Device struct {
 	Serial string `json:"serial"`

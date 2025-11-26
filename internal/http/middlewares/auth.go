@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/security"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/security"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 )
 
 func APIKeyAuth(expected string, validator security.TokenValidator) fiber.Handler {

@@ -1,4 +1,4 @@
-package serviceclient
+package analytics
 
 import (
 	"context"
@@ -7,12 +7,30 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/store"
 )
 
-func (v *OpenAPIRequest) GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointRow, error) {
+type TimepointClientInterface interface {
+	GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointRow, error)
+}
+
+type timepointClient struct {
+	store  *store.DiscoveryStore
+	client httpclient.OpenAPIRequestClient
+}
+
+func NewTimepointClient(client httpclient.OpenAPIRequestClient, store *store.DiscoveryStore) TimepointClientInterface {
+	return &timepointClient{
+		store:  store,
+		client: client,
+	}
+}
+
+func (v timepointClient) GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointRow, error) {
 	fullURL := "/api/v1/board"
 	if req.BoardID != "" {
 		fullURL += "/" + req.BoardID
@@ -59,7 +77,9 @@ func (v *OpenAPIRequest) GetTimepoints(ctx context.Context, req models.Timepoint
 	log := logger.ForFunctionality("TIMEPOINTS-CLIENT").WithFields(logFields)
 	start := time.Now()
 
-	resp, err := v.Do(ctx, fiber.MethodGet, "owanalytics", fullURL, nil)
+	services := v.store.GetServices("owanalytics")
+
+	resp, err := v.client.Do(ctx, fiber.MethodGet, "owanalytics", fullURL, nil, services)
 
 	if err != nil {
 		return nil, apperrors.WrapError(apperrors.CodeInternal, "failed to get timepoints", err)

@@ -22,22 +22,11 @@ type Config struct {
 
 	APIKey string `env:"API_KEY" envDefault:"dev-secret-key"`
 
-	PGHost        string        `env:"STORAGE_TYPE_POSTGRESQL_HOST" envDefault:"postgres"`
-	PGPort        int           `env:"STORAGE_TYPE_POSTGRESQL_PORT" envDefault:"5432"`
-	PGUser        string        `env:"STORAGE_TYPE_POSTGRESQL_USERNAME" envDefault:"app"`
-	PGPassword    string        `env:"STORAGE_TYPE_POSTGRESQL_PASSWORD" envDefault:"app"`
-	PGDatabase    string        `env:"STORAGE_TYPE_POSTGRESQL_DATABASE" envDefault:"topology"`
-	PGSSLMode     string        `env:"STORAGE_TYPE_POSTGRESQL_SSLMODE" envDefault:"disable"`
-	PGMaxConns    int32         `env:"STORAGE_TYPE_POSTGRESQL_MAX_CONNS" envDefault:"10"`
-	PGMinConns    int32         `env:"STORAGE_TYPE_POSTGRESQL_MIN_CONNS" envDefault:"1"`
-	PGMaxLifetime time.Duration `env:"STORAGE_TYPE_POSTGRESQL_MAX_CONN_LIFETIME" envDefault:"30m"`
-
 	TopologyWindow time.Duration `env:"TOPOLOGY_WINDOW" envDefault:"1h"`
 	TopologyDrift  time.Duration `env:"TOPOLOGY_DRIFT" envDefault:"2m"`
 	// kafka
 	KafkaBrokers         []string      `env:"KAFKA_BROKERS" envSeparator:","`
-	KafkaTopicCmd        string        `env:"KAFKA_TOPIC_CMD" envDefault:"CnC"`
-	KafkaTopicResp       string        `env:"KAFKA_TOPIC_RESP" envDefault:"CnC_Res"`
+	KafkaTopicCmd        string        `env:"KAFKA_TOPIC_CMD" envDefault:"service_event"`
 	KafkaTopics          []string      `yaml:"KAFKA_TOPICS" envDefault:"service_events"`
 	KafkaGroupID         string        `env:"KAFKA_GROUP_ID" envDefault:"nwtopology-service-group"`
 	KafkaDialTimeout     time.Duration `env:"KAFKA_DIAL_TIMEOUT" envDefault:"5s"`

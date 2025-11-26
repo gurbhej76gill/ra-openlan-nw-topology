@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 )
 
 func RequestLogger() fiber.Handler {

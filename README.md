@@ -7,7 +7,6 @@ This service exposes a TLS-protected HTTP API that builds the current wireless t
 - Builds a topology graph from timepoint samples: normalizes BSSIDs, separates AP vs mesh faces, attaches clients, and derives mesh edges (`internal/services/topology_service.go`).
 - Publishes its own lifecycle events back to Kafka for discovery by other services (`internal/services/lifecycle` via the Kafka producer).
 - Serves `/v1/topology` behind API-key or bearer-token validation (`internal/http`, `internal/http/middlewares`, `internal/security`), plus `/livez` and `/readyz` health probes.
-- Initializes a Postgres pool (reserved for timepoint DB access) and structured logging (`internal/logger`).
 
 HTTP API
 --------

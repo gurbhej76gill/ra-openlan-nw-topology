@@ -11,12 +11,12 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/security"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/http/handlers"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/http/middlewares"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/security"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 )
 
 type ServerDeps struct {
@@ -32,7 +32,6 @@ func New(app *fiber.App, deps ServerDeps, th *handlers.TopologyHandler) *fiber.A
 	app.Get("/readyz", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 	// middlewares
 	app.Use(middlewares.RequestLogger())
-	// app.Use(middlewares.APIKeyAuth(deps.APIKey, deps.TokenValidator))
 
 	// inject window/drift into context locals for handlers
 	app.Use(func(c fiber.Ctx) error {

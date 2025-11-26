@@ -9,15 +9,6 @@ type TimepointRow struct {
 	SSIDData   []SSIDData `json:"ssid_data"`
 }
 
-type TimepointRowDB struct {
-	ID         string `json:"id"`
-	BoardID    string `json:"boardId"`
-	Timestamp  int64  `json:"timestamp"`
-	Serial     string `json:"serialNumber"`
-	DeviceInfo string `json:"device_info"`
-	SSIDData   string `json:"ssid_data"`
-}
-
 type DeviceInfo struct {
 	Associations2G int     `json:"associations_2g"`
 	Associations5G int     `json:"associations_5g"`

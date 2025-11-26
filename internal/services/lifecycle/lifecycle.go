@@ -1,4 +1,4 @@
-package services
+package lifecycle
 
 import (
 	"context"
@@ -9,8 +9,12 @@ import (
 	"time"
 
 	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 )
+
+type Publisher interface {
+	Publish(ctx context.Context, key string, payload []byte) error
+}
 
 type lifecycleService struct {
 	cfg      *config.Config

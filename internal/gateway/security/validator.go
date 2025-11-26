@@ -4,13 +4,13 @@ import (
 	"context"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v3"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/adapters/serviceclient"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/store"
 )
 
 // TokenValidator validates subscription tokens against an upstream security service.
@@ -18,25 +18,19 @@ type TokenValidator interface {
 	Validate(ctx context.Context, token string) error
 }
 
-// ValidatorConfig tunes runtime behavior of the OWSEC token validator.
-type ValidatorConfig struct {
-	Timeout             time.Duration
-	InternalServiceName string
-}
-
 type owsecValidator struct {
-	client serviceclient.OpenAPIRequestClient
+	store  *store.DiscoveryStore
+	client httpclient.OpenAPIRequestClient
 }
 
 const (
-	defaultTimeout = 3 * time.Second
-	owsecService   = "owsec"
+	owsecService = "owsec"
 )
 
-// NewTokenValidator constructs a TokenValidator that calls the owsec /validateSubToken API.
-func NewTokenValidator(client serviceclient.OpenAPIRequestClient) TokenValidator {
+func NewTokenValidator(client httpclient.OpenAPIRequestClient, store *store.DiscoveryStore) TokenValidator {
 
 	return &owsecValidator{
+		store:  store,
 		client: client,
 	}
 }
@@ -52,9 +46,11 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 		ctx = context.Background()
 	}
 
+	services := v.store.GetServices(owsecService)
+
 	validateSubTokenURL := "/api/v1/validateSubToken?token=" + url.QueryEscape(token)
 
-	resp, err := v.client.Do(ctx, fiber.MethodGet, owsecService, validateSubTokenURL, nil)
+	resp, err := v.client.Do(ctx, fiber.MethodGet, owsecService, validateSubTokenURL, nil, services)
 
 	if resp != nil {
 		defer resp.Close()
@@ -63,7 +59,7 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 	if err != nil || resp == nil || resp.StatusCode() != fiber.StatusOK {
 		validateTokenURL := "/api/v1/validateToken?token=" + url.QueryEscape(token)
 
-		fallbackResp, err := v.client.Do(ctx, fiber.MethodGet, owsecService, validateTokenURL, nil)
+		fallbackResp, err := v.client.Do(ctx, fiber.MethodGet, owsecService, validateTokenURL, nil, services)
 		if fallbackResp != nil {
 			defer fallbackResp.Close()
 		}

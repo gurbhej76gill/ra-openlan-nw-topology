@@ -6,10 +6,10 @@ import (
 
 	kgo "github.com/segmentio/kafka-go"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/domain"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	kafkarouter "github.com/router-architects/ra-openlan-nw-topology/internal/kafka"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/store"
 )
 
@@ -33,7 +33,7 @@ func (h *DiscoveryHandler) Topic() string { return h.topic }
 func (h *DiscoveryHandler) Handle(ctx context.Context, msg kgo.Message) error {
 	_ = ctx
 
-	var evt domain.DiscoveryEvent
+	var evt models.DiscoveryEvent
 	if err := json.Unmarshal(msg.Value, &evt); err != nil {
 		return apperrors.WrapError(apperrors.CodeInvalidInput, "decode discovery event", err)
 	}
