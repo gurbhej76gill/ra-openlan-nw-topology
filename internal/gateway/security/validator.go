@@ -10,7 +10,7 @@ import (
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/store"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/services/discovery"
 )
 
 // TokenValidator validates subscription tokens against an upstream security service.
@@ -19,7 +19,7 @@ type TokenValidator interface {
 }
 
 type owsecValidator struct {
-	store  *store.DiscoveryStore
+	store  *discovery.DiscoveryStore
 	client httpclient.OpenAPIRequestClient
 }
 
@@ -27,7 +27,7 @@ const (
 	owsecService = "owsec"
 )
 
-func NewTokenValidator(client httpclient.OpenAPIRequestClient, store *store.DiscoveryStore) TokenValidator {
+func NewTokenValidator(client httpclient.OpenAPIRequestClient, store *discovery.DiscoveryStore) TokenValidator {
 
 	return &owsecValidator{
 		store:  store,

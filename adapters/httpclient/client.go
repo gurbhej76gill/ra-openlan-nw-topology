@@ -57,7 +57,6 @@ func (v *OpenAPIRequest) Do(ctx context.Context, method string, serviceType stri
 		"method":      method,
 		"endpoint":    endPoint,
 	})
-	// services := v.store.GetServices(serviceType)
 	baseLog.WithField("discovered_services", len(services)).Trace("discovered services for serviceType %s", serviceType)
 
 	for _, svc := range services {

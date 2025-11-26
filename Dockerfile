@@ -54,7 +54,7 @@ RUN apk add --no-cache ca-certificates bash curl
 WORKDIR /app
 ARG APP_NAME=network-topology-service
 COPY --from=builder "/out/${APP_NAME}" "/app/${APP_NAME}"
-COPY certs /app/certs
+# COPY certs /app/certs
 
 # Drop privileges by creating a user if you like:
 RUN adduser -D -u 65532 appuser

@@ -7,30 +7,34 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/store"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/services/discovery"
 )
 
 type TimepointClientInterface interface {
-	GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointRow, error)
+	GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointsData, error)
 }
 
 type timepointClient struct {
-	store  *store.DiscoveryStore
+	store  *discovery.DiscoveryStore
 	client httpclient.OpenAPIRequestClient
 }
 
-func NewTimepointClient(client httpclient.OpenAPIRequestClient, store *store.DiscoveryStore) TimepointClientInterface {
+func NewTimepointClient(client httpclient.OpenAPIRequestClient, store *discovery.DiscoveryStore) TimepointClientInterface {
 	return &timepointClient{
 		store:  store,
 		client: client,
 	}
 }
 
-func (v timepointClient) GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointRow, error) {
+const (
+	owanalytics = "owanalytics"
+)
+
+func (v timepointClient) GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointsData, error) {
 	fullURL := "/api/v1/board"
 	if req.BoardID != "" {
 		fullURL += "/" + req.BoardID
@@ -77,7 +81,7 @@ func (v timepointClient) GetTimepoints(ctx context.Context, req models.Timepoint
 	log := logger.ForFunctionality("TIMEPOINTS-CLIENT").WithFields(logFields)
 	start := time.Now()
 
-	services := v.store.GetServices("owanalytics")
+	services := v.store.GetServices(owanalytics)
 
 	resp, err := v.client.Do(ctx, fiber.MethodGet, "owanalytics", fullURL, nil, services)
 
@@ -96,14 +100,14 @@ func (v timepointClient) GetTimepoints(ctx context.Context, req models.Timepoint
 	}
 
 	type timepointResponse struct {
-		Points [][]models.TimepointRow `json:"points"`
+		Points [][]models.TimepointsData `json:"points"`
 	}
 	var tpResp timepointResponse
 	if err := json.Unmarshal(resp.Body(), &tpResp); err != nil {
 		return nil, apperrors.WrapError(apperrors.CodeInternal, "failed to parse timepoints response", err)
 	}
 
-	var timepoints []models.TimepointRow
+	var timepoints []models.TimepointsData
 	for _, bucket := range tpResp.Points {
 		if len(bucket) == 0 {
 			continue

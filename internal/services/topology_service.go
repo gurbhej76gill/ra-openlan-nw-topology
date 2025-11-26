@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/analytics"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/analytics"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 )
 

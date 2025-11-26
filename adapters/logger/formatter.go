@@ -20,10 +20,6 @@ type LegacyFormatter struct {
 
 // Format implements logrus.Formatter.
 func (f *LegacyFormatter) Format(entry *logrus.Entry) ([]byte, error) {
-	// app := getStringField(entry.Data, "app", "component", "service")
-	// if app == "" {
-	// 	app = "app"
-	// }
 
 	threadID := f.ThreadID
 	if v, ok := entry.Data["thread"]; ok {

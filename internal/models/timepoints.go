@@ -1,6 +1,6 @@
 package models
 
-type TimepointRow struct {
+type TimepointsData struct {
 	ID         string     `json:"id"`
 	BoardID    string     `json:"boardId"`
 	Timestamp  int64      `json:"timestamp"`

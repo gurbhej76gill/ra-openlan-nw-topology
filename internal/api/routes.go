@@ -1,8 +1,8 @@
-package http
+package api
 
 import (
-	"github.com/router-architects/ra-openlan-nw-topology/internal/http/handlers"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/http/middlewares"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/api/handlers"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/api/middlewares"
 
 	"github.com/gofiber/fiber/v3"
 )

@@ -13,16 +13,15 @@ import (
 	serviceclient "github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
 	kafkaadapter "github.com/router-architects/ra-openlan-nw-topology/adapters/kafka"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/api"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/api/handlers"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
-	discoverycomponent "github.com/router-architects/ra-openlan-nw-topology/internal/discovery"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/analytics"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/security"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/http"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/http/handlers"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/kafka"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/services"
+	discoverycomponent "github.com/router-architects/ra-openlan-nw-topology/internal/services/discovery"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/services/lifecycle"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/store"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/services/discovery"
 )
 
 func main() {
@@ -47,7 +46,7 @@ func main() {
 	entry := logrus.NewEntry(log)
 	logger.SetLogger(logger.LogrusAdapter{Entry: entry})
 
-	svcDiscoveryStore := store.NewDiscoveryStore()
+	svcDiscoveryStore := discovery.NewDiscoveryStore()
 
 	tokenValidationClient := client.New()
 	tokenValidationClient.SetTimeout(5 * time.Second)
@@ -76,7 +75,7 @@ func main() {
 	)
 	timepointClient := analytics.NewTimepointClient(OpenAPIRequestClient, svcDiscoveryStore)
 
-	cmdProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicCmd)
+	cmdProducer, err := kafkaadapter.NewProducerForTopic(cfg, cfg.KafkaTopicLifecycle)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer")
 	}
@@ -86,13 +85,10 @@ func main() {
 		logger.GetLogger().WithError(err).Fatal("failed to init kafka producer (lifecycle)")
 	}
 
-	handlerRegistry := kafka.NewHandlerRegistry()
-	discoveryHandler, err := discoverycomponent.NewDiscoveryHandler(cfg.KafkaTopicLifecycle, svcDiscoveryStore)
+	handlerRegistry := kafkaadapter.NewRegistry()
+	discoveryComponent, err := discoverycomponent.NewDiscoveryComponent(cfg.KafkaTopicCmd, handlerRegistry, svcDiscoveryStore, 100)
 	if err != nil {
 		logger.GetLogger().WithError(err).Fatal("failed to create discovery component")
-	}
-	if err := handlerRegistry.RegisterHandler(discoveryHandler); err != nil {
-		logger.GetLogger().WithError(err).Fatal("failed to register discovery component")
 	}
 
 	consumer, err := kafkaadapter.NewConsumer(cfg, handlerRegistry)
@@ -111,14 +107,12 @@ func main() {
 	})
 
 	th := handlers.NewTopologyHandler(svc)
-	deps := http.ServerDeps{
+	deps := api.ServerDeps{
 		APIKey:         cfg.APIKey,
-		TopologyWindow: cfg.TopologyWindow,
-		TopologyDrift:  cfg.TopologyDrift,
 		TokenValidator: tokenValidator,
 	}
 
-	http.New(app, deps, th)
+	api.New(app, deps, th)
 	deps.RegisterRoutes(app, th)
 
 	runCtx, runCancel := context.WithCancel(context.Background())
@@ -130,6 +124,9 @@ func main() {
 			}
 		}()
 	}
+
+	go discoveryComponent.Run(runCtx)
+
 	lifecycleService.Start(runCtx)
 
 	err = (&deps).Start(app, *cfg)

@@ -19,7 +19,6 @@ func NewTopologyHandler(s services.TopologyService) *TopologyHandler {
 	return &TopologyHandler{svc: s}
 }
 
-// GET /v1/topology?boardId={id}&at={RFC3339 optional}
 func (h *TopologyHandler) GetTopology(c fiber.Ctx) error {
 	log := logger.ForFunctionality("TOPOLOGY-HANDLER")
 	params := &models.TimepointsQuery{}

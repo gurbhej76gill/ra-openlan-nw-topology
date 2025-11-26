@@ -1,4 +1,4 @@
-package http
+package api
 
 import (
 	"context"
@@ -12,17 +12,15 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/api/handlers"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/api/middlewares"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/security"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/http/handlers"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/http/middlewares"
-	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 )
 
 type ServerDeps struct {
 	APIKey         string
-	TopologyWindow time.Duration
-	TopologyDrift  time.Duration
 	TokenValidator security.TokenValidator
 }
 
@@ -35,8 +33,6 @@ func New(app *fiber.App, deps ServerDeps, th *handlers.TopologyHandler) *fiber.A
 
 	// inject window/drift into context locals for handlers
 	app.Use(func(c fiber.Ctx) error {
-		c.Locals("topology_window", deps.TopologyWindow)
-		c.Locals("topology_drift", deps.TopologyDrift)
 		return c.Next()
 	})
 	return app
@@ -74,16 +70,12 @@ func (s *ServerDeps) Start(app *fiber.App, cfg config.Config) error {
 	}
 
 	// ---------- serve + graceful shutdown ----------
-	// log.WithField("addr", addr).Info("Listening (TLS)")
-
-	// Run the Fiber server in its own goroutine
 	go func() {
 		if err := app.Listener(ln); err != nil {
 			logger.GetLogger().WithError(err).Error("fiber listener stopped")
 		}
 	}()
 
-	// return ln, nil
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop

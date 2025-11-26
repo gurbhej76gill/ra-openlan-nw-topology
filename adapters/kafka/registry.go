@@ -1,21 +1,16 @@
 package kafka
 
 import (
-	"errors"
 	"sort"
 	"sync"
+
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 )
 
 type Message struct {
 	Topic string
-	Key   []byte
 	Value []byte
 }
-
-var (
-	ErrEmptyTopic     = errors.New("kafka-registry: topic cannot be empty")
-	ErrDuplicateTopic = errors.New("kafka-registry: topic already registered")
-)
 
 type Registry struct {
 	mu    sync.RWMutex
@@ -30,14 +25,14 @@ func NewRegistry() *Registry {
 
 func (r *Registry) Register(topic string, ch chan<- Message) error {
 	if topic == "" {
-		return ErrEmptyTopic
+		return apperrors.WrapError(apperrors.CodeInternal, "kafka-registry: topic cannot be empty", nil)
 	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if _, exists := r.chans[topic]; exists {
-		return ErrDuplicateTopic
+		return apperrors.WrapError(apperrors.CodeInternal, "kafka-registry: topic already registered", nil)
 	}
 
 	r.chans[topic] = ch

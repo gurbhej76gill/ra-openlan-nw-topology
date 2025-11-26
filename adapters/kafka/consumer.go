@@ -8,35 +8,29 @@ import (
 	kgo "github.com/segmentio/kafka-go"
 
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
-	internalkafka "github.com/router-architects/ra-openlan-nw-topology/internal/kafka"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
-)
-
-var (
-	ErrNoTopics  = errors.New("kafka: no topics registered")
-	ErrNoBrokers = errors.New("kafka: no brokers configured")
+	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
 )
 
 type Consumer struct {
-	reader          *kgo.Reader
-	handlerRegistry *internalkafka.HandlerRegistry
+	reader   *kgo.Reader
+	registry *Registry
 }
 
-func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegistry) (*Consumer, error) {
+func NewConsumer(cfg *config.Config, registry *Registry) (*Consumer, error) {
 	if cfg == nil {
-		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: config is nil", nil)
+		return nil, errors.New("kafka: config is nil")
 	}
-	if handlerRegistry == nil {
-		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: registry is nil", nil)
+	if registry == nil {
+		return nil, errors.New("kafka: registry is nil")
 	}
 
-	topics := handlerRegistry.Topics()
+	topics := registry.Topics()
 	if len(topics) == 0 {
-		return nil, ErrNoTopics
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: no topics registered in registry", nil)
 	}
 	if len(cfg.KafkaBrokers) == 0 {
-		return nil, ErrNoBrokers
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: no brokers configured", nil)
 	}
 
 	if log := logger.ForFunctionality("KAFKA-CONSUMER"); log != nil {
@@ -66,11 +60,11 @@ func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegis
 	reader := kgo.NewReader(kgo.ReaderConfig{
 		Brokers:               cfg.KafkaBrokers,
 		GroupID:               cfg.KafkaGroupID,
-		GroupTopics:           cfg.KafkaTopics,
+		GroupTopics:           topics, // use registry topics, not cfg.KafkaTopics
 		Dialer:                dialer,
 		MinBytes:              cfg.KafkaMinBytes,
 		MaxBytes:              cfg.KafkaMaxBytes,
-		CommitInterval:        0, // manual commit after handler success
+		CommitInterval:        0, // manual commit after successful publish to channel
 		WatchPartitionChanges: true,
 		ReadLagInterval:       -1,
 		StartOffset:           kgo.FirstOffset,
@@ -88,17 +82,20 @@ func NewConsumer(cfg *config.Config, handlerRegistry *internalkafka.HandlerRegis
 	}
 
 	return &Consumer{
-		reader:          reader,
-		handlerRegistry: handlerRegistry,
+		reader:   reader,
+		registry: registry,
 	}, nil
 }
 
 func (c *Consumer) Run(ctx context.Context) error {
 	log := logger.ForFunctionality("KAFKA-CONSUMER")
+
 	for {
 		msg, err := c.reader.FetchMessage(ctx)
 		if err != nil {
-			log.WithFields(logger.Fields{"error": err}).Error("err in kafka consumer fetch message")
+			if log != nil {
+				log.WithFields(logger.Fields{"error": err}).Error("err in kafka consumer fetch message")
+			}
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 				return nil
 			}
@@ -111,31 +108,30 @@ func (c *Consumer) Run(ctx context.Context) error {
 			continue
 		}
 
-		handler, ok := c.handlerRegistry.HandlerForTopic(msg.Topic)
+		ch, ok := c.registry.Channel(msg.Topic)
 		if !ok {
+			// No component registered for this topic; commit and move on.
 			if log != nil {
 				log.WithFields(logger.Fields{
 					"component": "kafka.consumer",
 					"topic":     msg.Topic,
-				}).Warn("no handler registered; committing message")
+				}).Warn("no channel registered; committing message")
 			}
-			if err := c.reader.CommitMessages(ctx, msg); err != nil {
-			}
+			_ = c.reader.CommitMessages(ctx, msg)
 			continue
 		}
 
-		if err := handler.Handle(ctx, msg); err != nil {
-			if log != nil {
-				log.WithFields(logger.Fields{
-					"component": "kafka.consumer",
-					"topic":     msg.Topic,
-				}).WithError(err).Error("handler failed")
-			}
-			// do not commit so the message can be retried
-			continue
+		bmsg := Message{
+			Topic: msg.Topic,
+			Value: msg.Value,
 		}
 
-		if err := c.reader.CommitMessages(ctx, msg); err != nil {
+		select {
+		case ch <- bmsg:
+			// Successfully delivered to internal channel; commit offset.
+			_ = c.reader.CommitMessages(ctx, msg)
+		case <-ctx.Done():
+			return nil
 		}
 	}
 }
