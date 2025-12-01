@@ -8,8 +8,8 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
 )
 
 type Publisher interface {
@@ -17,7 +17,7 @@ type Publisher interface {
 }
 
 type lifecycleService struct {
-	cfg      *config.Config
+	cfg      *config.LifecycleConfig
 	pub      Publisher
 	instance lifecycleState
 }
@@ -41,7 +41,7 @@ type lifecycleEvent struct {
 	Version         string `json:"version"`
 }
 
-func NewLifecycleService(cfg *config.Config, pub Publisher) *lifecycleService {
+func NewLifecycleService(cfg *config.LifecycleConfig, pub Publisher) *lifecycleService {
 	// build stable state for this process
 	id := uniqueNanoID()
 	key := sha256Hex(cfg.PublicEndpoint)
@@ -85,7 +85,7 @@ func (s *lifecycleService) Start(ctx context.Context) {
 }
 
 func (s *lifecycleService) safePublish(ctx context.Context, ev string) {
-	log := logger.ForFunctionality("LIFECYCLE")
+	log := logger.GetLoggerThreadId("SERVER")
 	evt := lifecycleEvent{
 		Event:           ev,
 		ID:              s.instance.id,

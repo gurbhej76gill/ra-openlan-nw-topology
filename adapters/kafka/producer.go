@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
 
 	"github.com/segmentio/kafka-go"
 	kgo "github.com/segmentio/kafka-go"
@@ -13,17 +13,10 @@ import (
 
 type producer struct {
 	w   *kgo.Writer
-	cfg *config.Config
+	cfg *config.KafkaConfig
 }
 
-func NewProducerForTopic(cfg *config.Config, topic string) (*producer, error) {
-	if log := logger.ForFunctionality("KAFKA-PRODUCER"); log != nil {
-		log.WithFields(logger.Fields{
-			"component": "kafka.producer",
-			"topic":     topic,
-			"brokers":   cfg.KafkaBrokers,
-		}).Trace("initializing kafka producer")
-	}
+func NewProducerForTopic(cfg *config.KafkaConfig, topic string) (*producer, error) {
 
 	tr := &kafka.Transport{
 		DialTimeout: 5 * time.Second,
@@ -42,23 +35,18 @@ func NewProducerForTopic(cfg *config.Config, topic string) (*producer, error) {
 		MaxAttempts:            12,
 	}
 
-	if log := logger.ForFunctionality("KAFKA-PRODUCER"); log != nil {
-		log.WithFields(logger.Fields{
-			"component": "kafka.producer",
-			"topic":     topic,
-		}).Trace("kafka producer ready")
-	}
-
 	return &producer{w: w, cfg: cfg}, nil
 }
 
 func (p *producer) Publish(ctx context.Context, key string, payload []byte) error {
+	log := logger.GetLoggerThreadId("SERVER")
 	msg := kgo.Message{
 		Key:   []byte(key),
 		Value: payload,
 		Time:  time.Now(),
 	}
-	if log := logger.ForFunctionality("KAFKA-PRODUCER"); log != nil {
+
+	if log != nil {
 		log.WithFields(logger.Fields{
 			"component": "kafka.producer",
 			"uuid":      key,
@@ -68,9 +56,7 @@ func (p *producer) Publish(ctx context.Context, key string, payload []byte) erro
 
 	err := p.w.WriteMessages(ctx, msg)
 	if err != nil {
-		if log := logger.ForFunctionality("KAFKA-PRODUCER"); log != nil {
-			log.WithFields(logger.Fields{"err": err, "uuid": key}).Error("Publish failed.", err)
-		}
+		log.WithFields(logger.Fields{"err": err, "uuid": key}).Error("Publish failed.", err)
 	}
 	return err
 }

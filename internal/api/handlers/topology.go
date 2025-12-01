@@ -20,7 +20,7 @@ func NewTopologyHandler(s services.TopologyService) *TopologyHandler {
 }
 
 func (h *TopologyHandler) GetTopology(c fiber.Ctx) error {
-	log := logger.ForFunctionality("TOPOLOGY-HANDLER")
+	log := logger.GetLoggerThreadId("SERVER")
 	params := &models.TimepointsQuery{}
 	if err := c.Bind().Query(params); err != nil {
 		if log != nil {

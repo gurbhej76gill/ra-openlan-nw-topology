@@ -52,7 +52,7 @@ func NewOpenApiRequest(client *client.Client, cfg OpenAPIRequestConfig) OpenAPIR
 }
 
 func (v *OpenAPIRequest) Do(ctx context.Context, method string, serviceType string, endPoint string, body io.Reader, services []models.DiscoveryEvent) (*client.Response, error) {
-	baseLog := logger.ForFunctionality("OPENAPI-CLIENT").WithFields(logger.Fields{
+	baseLog := logger.GetLoggerThreadId("SERVER").WithFields(logger.Fields{
 		"serviceType": serviceType,
 		"method":      method,
 		"endpoint":    endPoint,

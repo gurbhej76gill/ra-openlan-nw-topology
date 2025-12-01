@@ -36,7 +36,7 @@ func NewTokenValidator(client httpclient.OpenAPIRequestClient, store *discovery.
 }
 
 func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
-	log := logger.ForFunctionality("VALIDATOR")
+	log := logger.GetLoggerThreadId("SERVER")
 	token := strings.TrimSpace(rawToken)
 	if token == "" {
 		info := apperrors.GetHTTPErrorInfo(apperrors.CodeUnauthorized)

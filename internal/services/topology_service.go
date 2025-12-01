@@ -74,7 +74,7 @@ type faceOut struct {
 
 // main method
 func (s *topologyService) BuildTopology(ctx context.Context, boardID string, params models.TimepointsQuery) (models.Topology, error) {
-	log := logger.ForFunctionality("TOPOLOGY-SERVICE")
+	log := logger.GetLoggerThreadId("SERVER")
 	if log != nil {
 		log = log.WithFields(logger.Fields{"boardId": boardID})
 	}

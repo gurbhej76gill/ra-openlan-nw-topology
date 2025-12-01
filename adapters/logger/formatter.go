@@ -10,15 +10,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// LegacyFormatter renders logs in the `app | timestamp : [Level][thr:x] msg k=v` layout.
+// LegacyFormatter renders logs in the `timestamp | threadName : [Level][thr:x] msg k=v` layout.
 type LegacyFormatter struct {
-	// TimestampFormat overrides the default timestamp layout if provided.
 	TimestampFormat string
-	// ThreadID allows configuring a static thread identifier (defaults to 0).
-	ThreadID int
+	ThreadID        int
 }
 
-// Format implements logrus.Formatter.
 func (f *LegacyFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	threadID := f.ThreadID
@@ -37,12 +34,12 @@ func (f *LegacyFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	levelLabel := legacyLevel(entry.Level)
 	msg := entry.Message
 
-	functionality := strings.TrimSpace(getStringField(entry.Data, "functionality"))
-	fields := serializeFields(entry.Data, []string{"app", "component", "service", "thread", "functionality"})
+	threadName := strings.TrimSpace(getStringField(entry.Data, "threadName"))
+	fields := serializeFields(entry.Data, []string{"component", "service", "thread", "threadName"})
 
 	var buf bytes.Buffer
-	if functionality != "" {
-		fmt.Fprintf(&buf, "%s %s : [%s][thr:%d] %s", timestamp, functionality, levelLabel, threadID, msg)
+	if threadName != "" {
+		fmt.Fprintf(&buf, "%s | %s : [%s][thr:%d] %s", timestamp, threadName, levelLabel, threadID, msg)
 	} else {
 		fmt.Fprintf(&buf, "%s : [%s][thr:%d] %s", timestamp, levelLabel, threadID, msg)
 	}
@@ -77,8 +74,6 @@ func legacyLevel(level logrus.Level) string {
 		return "Error"
 	case logrus.FatalLevel:
 		return "Fatal"
-	case logrus.PanicLevel:
-		return "Panic"
 	default:
 		return level.String()
 	}

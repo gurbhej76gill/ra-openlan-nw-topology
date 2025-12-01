@@ -78,7 +78,7 @@ func (v timepointClient) GetTimepoints(ctx context.Context, req models.Timepoint
 	if req.MaxRecords != nil {
 		logFields["maxRecords"] = *req.MaxRecords
 	}
-	log := logger.ForFunctionality("TIMEPOINTS-CLIENT").WithFields(logFields)
+	log := logger.GetLoggerThreadId("SERVER").WithFields(logFields)
 	start := time.Now()
 
 	services := v.store.GetServices(owanalytics)

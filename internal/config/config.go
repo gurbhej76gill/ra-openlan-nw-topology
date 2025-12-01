@@ -6,11 +6,15 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
-type Config struct {
-	HTTPPort int `env:"HTTP_PORT" envDefault:"8088"`
+type ServerConfig struct {
+	// server
+	HTTPPort              int    `env:"HTTP_PORT" envDefault:"8088"`
+	TLS_CERT              string `env:"INTERNAL_RESTAPI_HOST_CERT"`
+	TLS_KEY               string `env:"INTERNAL_RESTAPI_HOST_KEY"`
+	TokenValidationCACert string `env:"INTERNAL_RESTAPI_HOST_ROOTCA"`
+}
 
-	APIKey string `env:"API_KEY" envDefault:"dev-secret-key"`
-
+type KafkaConfig struct {
 	// kafka
 	KafkaBrokers         []string      `env:"KAFKA_BROKERS" envSeparator:","`
 	KafkaTopicCmd        string        `env:"KAFKA_TOPIC_CMD" envDefault:"service_event"`
@@ -21,19 +25,33 @@ type Config struct {
 	KafkaMaxBytes        int           `env:"KAFKA_MAX_BYTES" envDefault:"1048576"`
 	KafkaAllowAutoCreate bool          `env:"KAFKA_ALLOW_AUTO_CREATE" envDefault:"true"`
 	KafkaTopicLifecycle  string        `env:"KAFKA_TOPIC_LIFECYCLE" envDefault:"service_events"`
+}
 
-	LogLevel              string `env:"SYSTEM_LOG_LEVEL" envDefault:"info"`
-	LogJSON               bool   `env:"SYSTEM__LOG_JSON" envDefault:"false"`
-	TLS_CERT              string `env:"INTERNAL_RESTAPI_HOST_CERT"`
-	TLS_KEY               string `env:"INTERNAL_RESTAPI_HOST_KEY"`
-	TokenValidationCACert string `env:"INTERNAL_RESTAPI_HOST_ROOTCA"`
-
+type LifecycleConfig struct {
 	// lifecycle event config
 	PrivateEndpoint   string        `env:"SYSTEM_URI_PRIVATE"`
 	PublicEndpoint    string        `env:"SYSTEM_URI_PUBLIC"`
 	ServiceType       string        `env:"SERVICE_TYPE" envDefault:"nwtopology"`
 	LifecycleInterval time.Duration `env:"LIFECYCLE_INTERVAL" envDefault:"30s"`
 	BuildVersion      string        `env:"BUILD_VERSION" envDefault:"dev"`
+}
+
+type MiddlewareConfig struct {
+	//middleware
+	APIKey string `env:"API_KEY" envDefault:"dev-secret-key"`
+}
+
+type LoggerConfig struct {
+	// logging
+	LogLevel string `env:"SYSTEM_LOG_LEVEL" envDefault:"trace"`
+}
+
+type Config struct {
+	Server     ServerConfig
+	Kafka      KafkaConfig
+	Lifecycle  LifecycleConfig
+	Middleware MiddlewareConfig
+	Logger     LoggerConfig
 }
 
 func Load() (*Config, error) {

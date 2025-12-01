@@ -17,12 +17,12 @@ type Consumer struct {
 	registry *Registry
 }
 
-func NewConsumer(cfg *config.Config, registry *Registry) (*Consumer, error) {
+func NewConsumer(cfg *config.KafkaConfig, registry *Registry) (*Consumer, error) {
 	if cfg == nil {
-		return nil, errors.New("kafka: config is nil")
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: config is nil", nil)
 	}
 	if registry == nil {
-		return nil, errors.New("kafka: registry is nil")
+		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: registry is nil", nil)
 	}
 
 	topics := registry.Topics()
@@ -31,15 +31,6 @@ func NewConsumer(cfg *config.Config, registry *Registry) (*Consumer, error) {
 	}
 	if len(cfg.KafkaBrokers) == 0 {
 		return nil, apperrors.WrapError(apperrors.CodeInternal, "kafka: no brokers configured", nil)
-	}
-
-	if log := logger.ForFunctionality("KAFKA-CONSUMER"); log != nil {
-		log.WithFields(logger.Fields{
-			"component": "kafka.consumer",
-			"brokers":   cfg.KafkaBrokers,
-			"group_id":  cfg.KafkaGroupID,
-			"topics":    topics,
-		}).Info("initializing kafka consumer")
 	}
 
 	dialTimeout := cfg.KafkaDialTimeout
@@ -73,14 +64,6 @@ func NewConsumer(cfg *config.Config, registry *Registry) (*Consumer, error) {
 		ReadBackoffMax:        2 * time.Second,
 	})
 
-	if log := logger.ForFunctionality("KAFKA-CONSUMER"); log != nil {
-		log.WithFields(logger.Fields{
-			"component": "kafka.consumer",
-			"group_id":  cfg.KafkaGroupID,
-			"topics":    topics,
-		}).Trace("kafka consumer ready")
-	}
-
 	return &Consumer{
 		reader:   reader,
 		registry: registry,
@@ -88,7 +71,7 @@ func NewConsumer(cfg *config.Config, registry *Registry) (*Consumer, error) {
 }
 
 func (c *Consumer) Run(ctx context.Context) error {
-	log := logger.ForFunctionality("KAFKA-CONSUMER")
+	log := logger.GetLoggerThreadId("KAFKA-CONSUMER")
 
 	for {
 		msg, err := c.reader.FetchMessage(ctx)

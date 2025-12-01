@@ -10,69 +10,82 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/client"
 
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/api/handlers"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/api/middlewares"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/config"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/security"
 )
 
-type ServerDeps struct {
-	APIKey         string
-	TokenValidator security.TokenValidator
+type Server struct {
+	Crt            string
+	Key            string
+	Port           int
+	AuthMiddleware middlewares.TopologyAuthMiddleware
 }
 
-func New(app *fiber.App, deps ServerDeps, th *handlers.TopologyHandler) *fiber.App {
+func New(cfg config.ServerConfig, authMiddleware middlewares.TopologyAuthMiddleware) *Server {
+
+	app := fiber.New()
 
 	app.Get("/livez", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 	app.Get("/readyz", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
-	// middlewares
+
 	app.Use(middlewares.RequestLogger())
 
-	// inject window/drift into context locals for handlers
 	app.Use(func(c fiber.Ctx) error {
 		return c.Next()
 	})
-	return app
+	server := Server{
+		Crt:            cfg.TLS_CERT,
+		Key:            cfg.TLS_KEY,
+		Port:           cfg.HTTPPort,
+		AuthMiddleware: authMiddleware,
+	}
+	return &server
 }
 
-func (s *ServerDeps) Start(app *fiber.App, cfg config.Config) error {
+func (s *Server) Start(app *fiber.App) error {
 
-	crt := cfg.TLS_CERT
-	key := cfg.TLS_KEY
+	log := logger.GetLoggerThreadId("SERVER")
+
+	fiberClient := client.New()
+	fiberClient.SetTimeout(5 * time.Second)
+
+	crt := s.Crt
+	key := s.Key
 	if crt == "" || key == "" {
-		logger.GetLogger().WithError(apperrors.WrapError(apperrors.CodeConflict, "TLS_CERT and TLS_KEY must be set", nil)).Fatal("TLS_CERT and TLS_KEY must be set")
+		log.WithError(apperrors.WrapError(apperrors.CodeConflict, "TLS_CERT and TLS_KEY must be set", nil)).Fatal("TLS_CERT and TLS_KEY must be set")
 	}
 
 	if _, err := os.Stat(crt); err != nil {
-		logger.GetLogger().WithError(err).Fatal("TLS cert not found/readable: %s (%v)", crt, err)
+		log.WithError(err).Fatal("TLS cert not found/readable: %s (%v)", crt, err)
 	}
 	if _, err := os.Stat(key); err != nil {
-		logger.GetLogger().WithError(err).Fatal("TLS key not found/readable: %s (%v)", key, err)
+		log.WithError(err).Fatal("TLS key not found/readable: %s (%v)", key, err)
 	}
 
 	cert, err := tls.LoadX509KeyPair(crt, key)
 	if err != nil {
-		logger.GetLogger().WithError(err).Fatal("Failed to load X509 key pair (cert=%s key=%s): %v", crt, key, err)
+		log.WithError(err).Fatal("Failed to load X509 key pair (cert=%s key=%s): %v", crt, key, err)
 	}
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 	}
 
-	port := cfg.HTTPPort
+	port := s.Port
 	addr := fmt.Sprintf(":%d", port)
 
 	ln, err := tls.Listen("tcp", addr, tlsConfig)
 	if err != nil {
-		logger.GetLogger().WithError(err).Fatal("failed to start TLS listener on %s: %v", addr, err)
+		log.WithError(err).Fatal("failed to start TLS listener on %s: %v", addr, err)
 	}
 
 	// ---------- serve + graceful shutdown ----------
 	go func() {
 		if err := app.Listener(ln); err != nil {
-			logger.GetLogger().WithError(err).Error("fiber listener stopped")
+			log.WithError(err).Error("fiber listener stopped")
 		}
 	}()
 
@@ -85,7 +98,7 @@ func (s *ServerDeps) Start(app *fiber.App, cfg config.Config) error {
 	defer cancel2()
 
 	if err := app.Shutdown(); err != nil {
-		logger.GetLogger().WithError(err).Error("fiber shutdown error")
+		log.WithError(err).Error("fiber shutdown error")
 	}
 
 	_ = ln.Close()

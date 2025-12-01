@@ -9,7 +9,7 @@ import (
 
 func RequestLogger() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		log := logger.ForFunctionality("MIDDLEWARE")
+		log := logger.GetLoggerThreadId("SERVER")
 		start := time.Now()
 		err := c.Next()
 		lat := time.Since(start)

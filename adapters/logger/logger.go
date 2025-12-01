@@ -1,29 +1,162 @@
 package logger
 
-import "github.com/sirupsen/logrus"
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 
-type LogrusAdapter struct{ *logrus.Entry }
+	"github.com/sirupsen/logrus"
+)
 
-func (l LogrusAdapter) Trace(args ...interface{})         { l.Entry.Trace(args...) }
-func (l LogrusAdapter) Debug(args ...interface{})         { l.Entry.Debug(args...) }
-func (l LogrusAdapter) Info(args ...interface{})          { l.Entry.Info(args...) }
-func (l LogrusAdapter) Warn(args ...interface{})          { l.Entry.Warn(args...) }
-func (l LogrusAdapter) Error(args ...interface{})         { l.Entry.Error(args...) }
-func (l LogrusAdapter) Fatal(args ...interface{})         { l.Entry.Fatal(args...) }
-func (l LogrusAdapter) Tracef(f string, a ...interface{}) { l.Entry.Tracef(f, a...) }
-func (l LogrusAdapter) Debugf(f string, a ...interface{}) { l.Entry.Debugf(f, a...) }
-func (l LogrusAdapter) Infof(f string, a ...interface{})  { l.Entry.Infof(f, a...) }
-func (l LogrusAdapter) Warnf(f string, a ...interface{})  { l.Entry.Warnf(f, a...) }
-func (l LogrusAdapter) Errorf(f string, a ...interface{}) { l.Entry.Errorf(f, a...) }
-func (l LogrusAdapter) Fatalf(f string, a ...interface{}) { l.Entry.Fatalf(f, a...) }
-func (l LogrusAdapter) WithFields(fields Fields) Logger {
-	return LogrusAdapter{l.Entry.WithFields(logrus.Fields(fields))}
+// LogrusLogger is a wrapper around logrus.Logger to conform to the Logger interface.
+type LogrusLogger struct {
+	logger *logrus.Entry
 }
-func (l LogrusAdapter) WithField(key string, value interface{}) Logger {
-	return LogrusAdapter{l.Entry.WithField(key, value)}
+
+// NewLogrusLogger initializes a new LogrusLogger.
+func NewLogrusLogger(level string) *LogrusLogger {
+
+	log := logrus.New()
+	log.SetFormatter(&LegacyFormatter{
+		TimestampFormat: "2006-01-02 15:04:05.000",
+	})
+	log.SetOutput(os.Stdout)
+	entry := logrus.NewEntry(log)
+
+	logLevel, err := logrus.ParseLevel(level)
+	if err != nil {
+		logrus.Errorf("GetLogger level is incorrect [%v]. Setting default to Info", level)
+		// logLevel = logrus.InfoLevel
+	}
+	log.SetLevel(logLevel)
+	log.SetReportCaller(false)
+	return &LogrusLogger{logger: entry}
 }
-func (l LogrusAdapter) WithError(err error) Logger {
-	return LogrusAdapter{l.Entry.WithError(err)}
+
+func (l *LogrusLogger) Trace(args ...interface{}) {
+	l.logger.Trace(args...)
+}
+
+func (l *LogrusLogger) Debug(args ...interface{}) {
+	l.logger.Debug(args...)
+}
+
+func (l *LogrusLogger) Info(args ...interface{}) {
+	l.logger.Info(args...)
+}
+
+func (l *LogrusLogger) Warn(args ...interface{}) {
+	l.logger.WithFields(logrus.Fields{
+		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
+		"function": getFuncName(2),
+		"line":     getCallerLine(2),
+	}).Warn(args...)
+}
+
+func (l *LogrusLogger) Error(args ...interface{}) {
+	l.logger.WithFields(logrus.Fields{
+		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
+		"function": getFuncName(2),
+		"line":     getCallerLine(2),
+	}).Error(args...)
+}
+
+func (l *LogrusLogger) Fatal(args ...interface{}) {
+	l.logger.WithFields(logrus.Fields{
+		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
+		"function": getFuncName(2),
+		"line":     getCallerLine(2),
+	}).Fatal(args...)
+}
+
+// Formatted methods
+
+func (l *LogrusLogger) Tracef(format string, args ...interface{}) {
+	l.logger.Tracef(format, args...)
+}
+
+func (l *LogrusLogger) Debugf(format string, args ...interface{}) {
+	l.logger.Debugf(format, args...)
+}
+
+func (l *LogrusLogger) Infof(format string, args ...interface{}) {
+	l.logger.Infof(format, args...)
+}
+
+func (l *LogrusLogger) Warnf(format string, args ...interface{}) {
+	l.logger.WithFields(logrus.Fields{
+		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
+		"function": getFuncName(2),
+		"line":     getCallerLine(2),
+	}).Warnf(format, args...)
+}
+
+func (l *LogrusLogger) Errorf(format string, args ...interface{}) {
+	l.logger.WithFields(logrus.Fields{
+		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
+		"function": getFuncName(2),
+		"line":     getCallerLine(2),
+	}).Errorf(format, args...)
+}
+
+func (l *LogrusLogger) Fatalf(format string, args ...interface{}) {
+	l.logger.WithFields(logrus.Fields{
+		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
+		"function": getFuncName(2),
+		"line":     getCallerLine(2),
+	}).Fatalf(format, args...)
+}
+
+func (l *LogrusLogger) WithFields(fields Fields) Logger {
+	return &LogrusLogger{logger: l.logger.WithFields(logrus.Fields(fields))}
+}
+
+func (l *LogrusLogger) WithField(key string, value interface{}) Logger {
+	return &LogrusLogger{logger: l.logger.WithField(key, value)}
+}
+
+func (l *LogrusLogger) WithError(err error) Logger {
+	return &LogrusLogger{logger: l.logger.WithError(err)}
+}
+
+func getCallerFile(skip int) string {
+	_, file, _, ok := runtime.Caller(skip)
+	if !ok {
+		return "unknown"
+	}
+	return filepath.Base(file)
+}
+
+// Custom function to get caller line
+func getCallerLine(skip int) int {
+	_, _, line, ok := runtime.Caller(skip)
+	if !ok {
+		return 0
+	}
+	return line
+}
+
+func getFuncName(skip int) string {
+	pc, _, _, ok := runtime.Caller(skip)
+	if !ok {
+		return "Unknown"
+	}
+	return trimFuncName(runtime.FuncForPC(pc).Name())
+}
+
+// trimFuncName extracts only the package and function name.
+func trimFuncName(fullFuncName string) string {
+	// Split the full function name by '/' to remove the path
+	parts := strings.Split(fullFuncName, "/")
+	lastPart := parts[len(parts)-1] // Get the last part after the last '/'
+
+	// Now split by '.' to separate package and function parts
+	pkgFuncParts := strings.SplitN(lastPart, ".", 2)
+	if len(pkgFuncParts) > 1 {
+		return pkgFuncParts[0] + "." + pkgFuncParts[1]
+	}
+	return lastPart
 }
 
 // Fields is a convenience alias for structured log fields.
@@ -58,12 +191,3 @@ func SetLogger(l Logger) { globalLogger = l }
 
 // GetLogger gets the global logger instance (may be nil if not initialized).
 func GetLogger() Logger { return globalLogger }
-
-// ForFunctionality returns the global logger tagged with a functionality label.
-func ForFunctionality(name string) Logger {
-	log := GetLogger()
-	if log == nil || name == "" {
-		return log
-	}
-	return log.WithField("functionality", name)
-}

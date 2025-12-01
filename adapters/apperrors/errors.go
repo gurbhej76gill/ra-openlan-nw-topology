@@ -19,12 +19,11 @@ const (
 	CodeUnknown      ErrorCode = "UNKNOWN"         // 500
 )
 
-// Error captures details about an application or domain-specific error.
 type Error struct {
-	Code    ErrorCode      // type/category of the error
-	Message string         // user-readable message
-	Cause   error          // optional root cause (not exposed in API responses)
-	Body    map[string]any // optional structured payload (e.g., validation fields)
+	Code    ErrorCode
+	Message string
+	Cause   error
+	Body    map[string]any
 }
 
 // Error implements the error interface.
@@ -42,14 +41,6 @@ func WrapError(code ErrorCode, message string, cause error) *Error {
 		Message: message,
 		Cause:   cause,
 	}
-}
-
-// GetErrorCode extracts an ErrorCode from an error if it's an *Error; otherwise UNKNOWN.
-func GetErrorCode(err error) ErrorCode {
-	if appErr, ok := err.(*Error); ok {
-		return appErr.Code
-	}
-	return CodeUnknown
 }
 
 type HTTPErrorInfo struct {
@@ -72,7 +63,6 @@ var defaultHTTPErrorInfo = HTTPErrorInfo{
 	Description: "Internal Server Error.",
 }
 
-// GetHTTPErrorInfo maps an ErrorCode to HTTP status/description pair.
 func GetHTTPErrorInfo(code ErrorCode) HTTPErrorInfo {
 	if info, ok := errorInfoMap[code]; ok {
 		return info

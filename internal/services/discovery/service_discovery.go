@@ -54,7 +54,7 @@ func NewDiscoveryComponent(
 // Run should typically be started as a goroutine.
 // It continuously reads messages from the channel and updates the store.
 func (d *DiscoveryComponent) Run(ctx context.Context) {
-	log := logger.ForFunctionality("SERVICE-DISCOVERY")
+	log := logger.GetLoggerThreadId("DISCOVERY")
 
 	for {
 		select {
