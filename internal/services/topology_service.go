@@ -25,34 +25,6 @@ func NewTopologyService(client analytics.TimepointClientInterface) TopologyServi
 	return &topologyService{client: client}
 }
 
-// ---------- Input JSON structures (ssid_data, device_info) ----------
-type ssidFace struct {
-	Associations []struct {
-		Connected int    `json:"connected"`
-		Inactive  int    `json:"inactive"`
-		RSSI      int    `json:"rssi"`
-		Station   string `json:"station"`
-		RxRate    struct {
-			Bitrate int `json:"bitrate"`
-			Chwidth int `json:"chwidth"`
-		} `json:"rx_rate"`
-		TxRate struct {
-			Bitrate int `json:"bitrate"`
-			Chwidth int `json:"chwidth"`
-		} `json:"tx_rate"`
-	} `json:"associations"`
-	Band    int    `json:"band"`
-	BSSID   string `json:"bssid"`
-	Channel int    `json:"channel"`
-	Mode    string `json:"mode"` // "ap" | "mesh"
-	SSID    string `json:"ssid"`
-}
-
-type deviceInfo struct {
-	DeviceType   string `json:"deviceType"`
-	SerialNumber string `json:"serialNumber"`
-}
-
 // ---------- Internal helpers ----------
 type rowParsed struct {
 	ts     int64
