@@ -31,6 +31,7 @@ func main() {
 	}
 
 	logger.SetLogger(logger.NewLogrusLogger(cfg.Logger.LogLevel))
+	logger.InitializeSubsystemLevels(cfg.Logger.LogLevel)
 	log := logger.GetLogger()
 
 	if log == nil {

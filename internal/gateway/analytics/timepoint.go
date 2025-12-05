@@ -3,6 +3,7 @@ package analytics
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strconv"
 	"time"
 
@@ -114,6 +115,15 @@ func (v timepointClient) GetTimepoints(ctx context.Context, req models.Timepoint
 		}
 		timepoints = append(timepoints, bucket...)
 	}
+	// Keep the timepoints ordered with the most recent timestamp first.
+	sort.Slice(timepoints, func(i, j int) bool {
+		return timepoints[i].Timestamp > timepoints[j].Timestamp
+	})
+
+	// Keep the timepoints ordered with the most recent timestamp first.
+	sort.Slice(timepoints, func(i, j int) bool {
+		return timepoints[i].Timestamp > timepoints[j].Timestamp
+	})
 
 	log.WithFields(logger.Fields{
 		"records":     len(timepoints),

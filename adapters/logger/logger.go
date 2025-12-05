@@ -14,12 +14,17 @@ type LogrusLogger struct {
 	logger *logrus.Entry
 }
 
+const (
+	// TimestampFormat defines the format for timestamps in log entries.
+	TimestampFormat = "2006-01-02 15:04:05"
+)
+
 // NewLogrusLogger initializes a new LogrusLogger.
 func NewLogrusLogger(level string) *LogrusLogger {
 
 	log := logrus.New()
 	log.SetFormatter(&LegacyFormatter{
-		TimestampFormat: "2006-01-02 15:04:05.000",
+		TimestampFormat: TimestampFormat,
 	})
 	log.SetOutput(os.Stdout)
 	entry := logrus.NewEntry(log)
@@ -35,18 +40,31 @@ func NewLogrusLogger(level string) *LogrusLogger {
 }
 
 func (l *LogrusLogger) Trace(args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.TraceLevel) {
+		return
+	}
 	l.logger.Trace(args...)
 }
 
 func (l *LogrusLogger) Debug(args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.DebugLevel) {
+		return
+	}
 	l.logger.Debug(args...)
 }
 
 func (l *LogrusLogger) Info(args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.InfoLevel) {
+		return
+	}
 	l.logger.Info(args...)
 }
 
 func (l *LogrusLogger) Warn(args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.WarnLevel) {
+		return
+	}
+
 	l.logger.WithFields(logrus.Fields{
 		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
 		"function": getFuncName(2),
@@ -55,6 +73,10 @@ func (l *LogrusLogger) Warn(args ...interface{}) {
 }
 
 func (l *LogrusLogger) Error(args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.ErrorLevel) {
+		return
+	}
+
 	l.logger.WithFields(logrus.Fields{
 		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
 		"function": getFuncName(2),
@@ -63,6 +85,10 @@ func (l *LogrusLogger) Error(args ...interface{}) {
 }
 
 func (l *LogrusLogger) Fatal(args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.FatalLevel) {
+		return
+	}
+
 	l.logger.WithFields(logrus.Fields{
 		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
 		"function": getFuncName(2),
@@ -73,18 +99,31 @@ func (l *LogrusLogger) Fatal(args ...interface{}) {
 // Formatted methods
 
 func (l *LogrusLogger) Tracef(format string, args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.TraceLevel) {
+		return
+	}
 	l.logger.Tracef(format, args...)
 }
 
 func (l *LogrusLogger) Debugf(format string, args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.DebugLevel) {
+		return
+	}
 	l.logger.Debugf(format, args...)
 }
 
 func (l *LogrusLogger) Infof(format string, args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.InfoLevel) {
+		return
+	}
 	l.logger.Infof(format, args...)
 }
 
 func (l *LogrusLogger) Warnf(format string, args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.WarnLevel) {
+		return
+	}
+
 	l.logger.WithFields(logrus.Fields{
 		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
 		"function": getFuncName(2),
@@ -93,6 +132,10 @@ func (l *LogrusLogger) Warnf(format string, args ...interface{}) {
 }
 
 func (l *LogrusLogger) Errorf(format string, args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.ErrorLevel) {
+		return
+	}
+
 	l.logger.WithFields(logrus.Fields{
 		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
 		"function": getFuncName(2),
@@ -101,11 +144,34 @@ func (l *LogrusLogger) Errorf(format string, args ...interface{}) {
 }
 
 func (l *LogrusLogger) Fatalf(format string, args ...interface{}) {
+	if !l.allowedBySubsystem(logrus.FatalLevel) {
+		return
+	}
+
 	l.logger.WithFields(logrus.Fields{
 		"file":     getCallerFile(2), // Increase skip level to bypass wrapper
 		"function": getFuncName(2),
 		"line":     getCallerLine(2),
 	}).Fatalf(format, args...)
+}
+
+func (l *LogrusLogger) allowedBySubsystem(level logrus.Level) bool {
+	if l == nil || l.logger == nil {
+		return true
+	}
+	if l.logger.Data == nil {
+		return true
+	}
+	raw, ok := l.logger.Data["threadName"]
+	if !ok {
+		return true
+	}
+	threadName, ok := raw.(string)
+	if !ok || threadName == "" {
+		return true
+	}
+	minLevel := GetSubsystemLevel(threadName)
+	return level <= minLevel
 }
 
 func (l *LogrusLogger) WithFields(fields Fields) Logger {

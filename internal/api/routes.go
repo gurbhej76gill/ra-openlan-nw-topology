@@ -7,6 +7,9 @@ import (
 )
 
 func (s *Server) RegisterRoutes(app *fiber.App, th *handlers.TopologyHandler) {
-	v1 := app.Group("/v1", s.AuthMiddleware.TopologyAuth)
+	noAuth := app.Group("/api/v1")
+	noAuth.Get("/system", handlers.SystemInfoHandler)
+	noAuth.Post("/system", handlers.SystemAPIHandler)
+	v1 := app.Group("/api/v1", s.AuthMiddleware.TopologyAuth)
 	v1.Get("/topology", th.GetTopology)
 }
