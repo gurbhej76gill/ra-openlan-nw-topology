@@ -70,11 +70,6 @@ func main() {
 	)
 	timepointClient := analytics.NewTimepointClient(OpenAPIRequestClient, svcDiscoveryStore)
 
-	cmdProducer, err := kafkaadapter.NewProducerForTopic(&cfg.Kafka, cfg.Kafka.KafkaTopicLifecycle)
-	if err != nil {
-		log.WithError(err).Fatal("failed to init kafka producer")
-	}
-
 	lifecycleProducer, err := kafkaadapter.NewProducerForTopic(&cfg.Kafka, cfg.Kafka.KafkaTopicLifecycle)
 	if err != nil {
 		log.WithError(err).Fatal("failed to init kafka producer (lifecycle)")
@@ -141,7 +136,6 @@ func main() {
 
 	runCancel()
 	_ = app.Shutdown()
-	_ = cmdProducer.Close()
 	if consumer != nil {
 		_ = consumer.Close()
 	}

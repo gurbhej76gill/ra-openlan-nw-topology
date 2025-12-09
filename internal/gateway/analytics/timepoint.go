@@ -46,10 +46,10 @@ func (v timepointClient) GetTimepoints(ctx context.Context, req models.Timepoint
 	fullURL += "/timepoints?"
 
 	if req.FromDate != nil {
-		fullURL += "fromDate=" + *req.FromDate + "&"
+		fullURL += "fromDate=" + strconv.FormatUint(*req.FromDate, 10) + "&"
 	}
 	if req.EndDate != nil {
-		fullURL += "endDate=" + *req.EndDate + "&"
+		fullURL += "endDate=" + strconv.FormatUint(*req.EndDate, 10) + "&"
 	}
 	if req.MaxRecords != nil {
 		fullURL += "maxRecords=" + strconv.Itoa(*req.MaxRecords) + "&"
@@ -115,11 +115,6 @@ func (v timepointClient) GetTimepoints(ctx context.Context, req models.Timepoint
 		}
 		timepoints = append(timepoints, bucket...)
 	}
-	// Keep the timepoints ordered with the most recent timestamp first.
-	sort.Slice(timepoints, func(i, j int) bool {
-		return timepoints[i].Timestamp > timepoints[j].Timestamp
-	})
-
 	// Keep the timepoints ordered with the most recent timestamp first.
 	sort.Slice(timepoints, func(i, j int) bool {
 		return timepoints[i].Timestamp > timepoints[j].Timestamp

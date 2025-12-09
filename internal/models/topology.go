@@ -53,11 +53,6 @@ type MeshEdge struct {
 }
 
 type TimepointsQuery struct {
-	BoardID         string `query:"boardId"`
-	FromDate        string `query:"fromDate"`
-	EndDate         string `query:"endDate"`
-	MaxRecords      int    `query:"maxRecords"`
-	StatsOnly       bool   `query:"statsOnly"`
-	PointsOnly      bool   `query:"pointsOnly"`
-	PointsStatsOnly bool   `query:"pointsStatsOnly"`
+	BoardID string `query:"boardId"`
+	Date    string `query:"at"`
 }

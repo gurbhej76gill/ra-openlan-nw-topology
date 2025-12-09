@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -29,7 +30,28 @@ func (h *TopologyHandler) GetTopology(c fiber.Ctx) error {
 		return writeErrorResponse(c, apperrors.CodeInvalidInput)
 	}
 
-	topo, err := h.svc.BuildTopology(c.Context(), params.BoardID, *params)
+	if params.BoardID == "" {
+		if log != nil {
+			log.Warn("missing boardId in topology query params")
+		}
+		return writeErrorResponse(c, apperrors.CodeInvalidInput)
+	}
+	var DatePtr *time.Time
+	if params.Date != "" {
+		// missing zone -> UTC
+		// Parse strictly: try RFC3339, else try "2006-01-02T15:04:05" as UTC.
+		if t, err := time.Parse(time.RFC3339, params.Date); err == nil {
+			ut := t.UTC()
+			DatePtr = &ut
+		} else if t2, err2 := time.Parse("2006-01-02T15:04:05", params.Date); err2 == nil {
+			ut := t2.UTC()
+			DatePtr = &ut
+		} else {
+			return writeErrorResponse(c, apperrors.CodeInvalidInput)
+		}
+	}
+
+	topo, err := h.svc.BuildTopology(c.Context(), params.BoardID, DatePtr)
 	if err != nil {
 		appErr, ok := err.(*apperrors.Error)
 		if !ok {

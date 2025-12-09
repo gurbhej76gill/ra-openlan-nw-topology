@@ -14,7 +14,7 @@ import (
 
 // Service interface
 type TopologyService interface {
-	BuildTopology(ctx context.Context, boardID string, params models.TimepointsQuery) (models.Topology, error)
+	BuildTopology(ctx context.Context, boardID string, Date *time.Time) (models.Topology, error)
 }
 
 type topologyService struct {
@@ -45,19 +45,30 @@ type faceOut struct {
 }
 
 // main method
-func (s *topologyService) BuildTopology(ctx context.Context, boardID string, params models.TimepointsQuery) (models.Topology, error) {
+func (s *topologyService) BuildTopology(ctx context.Context, boardID string, date *time.Time) (models.Topology, error) {
 	log := logger.GetLoggerThreadId("SERVER")
 	if log != nil {
 		log = log.WithFields(logger.Fields{"boardId": boardID})
 	}
 
+	var fromDate uint64
+	var endDate uint64
+	if date == nil || date.IsZero() {
+		fromDate = uint64(time.Now().Add(-60 * time.Minute).Unix())
+		endDate = uint64(time.Now().Unix())
+	} else {
+		fromDate = uint64(date.Add(-60 * time.Minute).Unix())
+		endDate = uint64(date.Unix())
+	}
+
 	end := time.Now().Unix()
+	maxRecords := 1000
 
 	rows, err := s.client.GetTimepoints(ctx, models.TimepointRequest{
 		BoardID:        boardID,
-		FromDate:       StringPtr(params.FromDate),
-		EndDate:        StringPtr(params.EndDate),
-		MaxRecords:     IntrPtr(params.MaxRecords),
+		FromDate:       UInt64Ptr(fromDate),
+		EndDate:        UInt64Ptr(endDate),
+		MaxRecords:     IntrPtr(maxRecords),
 		StatsOnly:      false,
 		PointsOnly:     true,
 		PointStatsOnly: false,
@@ -329,4 +340,8 @@ func StringPtr(s string) *string {
 
 func IntrPtr(i int) *int {
 	return &i
+}
+
+func UInt64Ptr(u uint64) *uint64 {
+	return &u
 }
