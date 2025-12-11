@@ -12,6 +12,7 @@ type Topology struct {
 // Device groups faces by device serial.
 type Device struct {
 	Serial string `json:"serial"`
+	Uptime int64  `json:"uptime"`
 	APs    []Face `json:"aps"`
 	Mesh   []Face `json:"mesh"`
 }

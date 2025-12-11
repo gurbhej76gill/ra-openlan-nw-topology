@@ -29,6 +29,7 @@ func NewTopologyService(client analytics.TimepointClientInterface) TopologyServi
 type rowParsed struct {
 	ts     int64
 	serial string
+	uptime int64
 	faces  []models.SSIDData
 }
 
@@ -98,7 +99,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, dat
 		serial = strings.TrimSpace(serial)
 
 		faces := r.SSIDData
-		parsed = append(parsed, rowParsed{ts: r.Timestamp, serial: serial, faces: faces})
+		parsed = append(parsed, rowParsed{ts: r.Timestamp, serial: serial, faces: faces, uptime: r.DeviceInfo.Uptime})
 
 		for _, f := range faces {
 			b := normMAC(f.BSSID)
@@ -131,6 +132,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, dat
 			// create device if needed
 			if _, ok := devMap[rp.serial]; !ok {
 				devMap[rp.serial] = &models.Device{
+					Uptime: rp.uptime,
 					Serial: rp.serial,
 					APs:    []models.Face{},
 					Mesh:   []models.Face{},
@@ -250,7 +252,6 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, dat
 			}
 		}
 	}
-
 	// 5) Move updated faces (with timestamp & clients) back into devices
 	//    (We reassign the slices because fo.face was a copy in step 3)
 	for serial, dev := range devMap {
