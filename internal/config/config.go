@@ -16,15 +16,16 @@ type ServerConfig struct {
 
 type KafkaConfig struct {
 	// kafka
-	KafkaBrokers         []string      `env:"KAFKA_BROKERS" envSeparator:","`
-	KafkaTopicCmd        string        `env:"KAFKA_TOPIC_CMD" envDefault:"service_event"`
-	KafkaGroupID         string        `env:"KAFKA_GROUP_ID" envDefault:"nwtopology-service-group"`
-	KafkaDialTimeout     time.Duration `env:"KAFKA_DIAL_TIMEOUT" envDefault:"5s"`
-	KafkaReadTimeout     time.Duration `env:"KAFKA_READ_TIMEOUT" envDefault:"5s"`
-	KafkaMinBytes        int           `env:"KAFKA_MIN_BYTES" envDefault:"1"`
-	KafkaMaxBytes        int           `env:"KAFKA_MAX_BYTES" envDefault:"1048576"`
-	KafkaAllowAutoCreate bool          `env:"KAFKA_ALLOW_AUTO_CREATE" envDefault:"true"`
-	KafkaTopicLifecycle  string        `env:"KAFKA_TOPIC_LIFECYCLE" envDefault:"service_events"`
+	KafkaBrokers          []string      `env:"KAFKA_BROKERS" envSeparator:","`
+	KafkaTopicCmd         string        `env:"KAFKA_TOPIC_CMD" envDefault:"service_event"`
+	KafkaGroupID          string        `env:"KAFKA_GROUP_ID" envDefault:"nwtopology-service-group"`
+	KafkaDialTimeout      time.Duration `env:"KAFKA_DIAL_TIMEOUT" envDefault:"5s"`
+	KafkaReadTimeout      time.Duration `env:"KAFKA_READ_TIMEOUT" envDefault:"5s"`
+	KafkaMinBytes         int           `env:"KAFKA_MIN_BYTES" envDefault:"1"`
+	KafkaMaxBytes         int           `env:"KAFKA_MAX_BYTES" envDefault:"1048576"`
+	KafkaAllowAutoCreate  bool          `env:"KAFKA_ALLOW_AUTO_CREATE" envDefault:"true"`
+	KafkaAllowOffsetReset bool          `env:"KAFKA_OFFSET_RESET" envDefault:"false"`
+	KafkaTopicLifecycle   string        `env:"KAFKA_TOPIC_LIFECYCLE" envDefault:"service_events"`
 }
 
 type LifecycleConfig struct {

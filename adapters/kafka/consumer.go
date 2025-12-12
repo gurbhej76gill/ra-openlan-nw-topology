@@ -47,6 +47,10 @@ func NewConsumer(cfg *config.KafkaConfig, registry *Registry) (*Consumer, error)
 		Timeout:   dialTimeout,
 		DualStack: true,
 	}
+	startOffset := kgo.LastOffset
+	if cfg.KafkaAllowOffsetReset {
+		startOffset = kgo.FirstOffset
+	}
 
 	reader := kgo.NewReader(kgo.ReaderConfig{
 		Brokers:               cfg.KafkaBrokers,
@@ -58,7 +62,7 @@ func NewConsumer(cfg *config.KafkaConfig, registry *Registry) (*Consumer, error)
 		CommitInterval:        0, // manual commit after successful publish to channel
 		WatchPartitionChanges: true,
 		ReadLagInterval:       -1,
-		StartOffset:           kgo.FirstOffset,
+		StartOffset:           startOffset,
 		MaxWait:               maxWait,
 		ReadBackoffMin:        250 * time.Millisecond,
 		ReadBackoffMax:        2 * time.Second,
