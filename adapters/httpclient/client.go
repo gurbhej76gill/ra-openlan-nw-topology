@@ -13,10 +13,6 @@ import (
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 )
 
-type OpenAPIRequestClient interface {
-	Do(ctx context.Context, method string, serviceType string, endPoint string, body io.Reader, services []models.DiscoveryEvent) (*client.Response, error)
-}
-
 type OpenAPIRequest struct {
 	// store        *store.DiscoveryStore
 	client       *client.Client
@@ -33,7 +29,7 @@ const (
 	defaultRequestTimeout = 3 * time.Second
 )
 
-func NewOpenApiRequest(client *client.Client, cfg OpenAPIRequestConfig) OpenAPIRequestClient {
+func NewOpenApiRequest(client *client.Client, cfg OpenAPIRequestConfig) *OpenAPIRequest {
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = defaultRequestTimeout

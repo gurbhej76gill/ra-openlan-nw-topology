@@ -9,23 +9,19 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/services/discovery"
 )
 
-type TimepointClientInterface interface {
-	GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointsData, error)
-}
-
-type timepointClient struct {
+type analyticsClient struct {
 	store  *discovery.DiscoveryStore
-	client httpclient.OpenAPIRequestClient
+	client gateway.OpenAPIRequestClient
 }
 
-func NewTimepointClient(client httpclient.OpenAPIRequestClient, store *discovery.DiscoveryStore) TimepointClientInterface {
-	return &timepointClient{
+func NewAnalyticsClient(client gateway.OpenAPIRequestClient, store *discovery.DiscoveryStore) *analyticsClient {
+	return &analyticsClient{
 		store:  store,
 		client: client,
 	}
@@ -35,13 +31,9 @@ const (
 	owanalytics = "owanalytics"
 )
 
-func (v timepointClient) GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointsData, error) {
+func (v *analyticsClient) GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointsData, error) {
 	fullURL := "/api/v1/board"
-	if req.BoardID != "" {
-		fullURL += "/" + req.BoardID
-	} else {
-		return nil, apperrors.WrapError(apperrors.CodeInvalidInput, "boardId is required", nil)
-	}
+	fullURL += "/" + req.BoardID
 
 	fullURL += "/timepoints?"
 
@@ -62,6 +54,9 @@ func (v timepointClient) GetTimepoints(ctx context.Context, req models.Timepoint
 	}
 	if req.PointStatsOnly {
 		fullURL += "pointStatsOnly=true"
+	}
+	if req.Latest {
+		fullURL += "LatestPerDevice=true"
 	}
 
 	logFields := logger.Fields{
@@ -128,4 +123,37 @@ func (v timepointClient) GetTimepoints(ctx context.Context, req models.Timepoint
 
 	return timepoints, nil
 
+}
+
+func (v *analyticsClient) GetDeviceInfo(ctx context.Context, boardId string) ([]models.DeviceInfo, error) {
+	// Placeholder for future implementation
+	fullURL := "/api/v1/board/" + boardId + "/devices"
+
+	services := v.store.GetServices(owanalytics)
+
+	resp, err := v.client.Do(ctx, fiber.MethodGet, "owanalytics", fullURL, nil, services)
+
+	if err != nil {
+		return []models.DeviceInfo{}, apperrors.WrapError(apperrors.CodeInternal, "failed to get device info", err)
+	}
+
+	if resp.StatusCode() == fiber.StatusNotFound {
+		info := apperrors.GetHTTPErrorInfo(apperrors.CodeNotFound)
+		return []models.DeviceInfo{}, apperrors.WrapError(apperrors.CodeNotFound, info.Description, nil)
+	}
+
+	if resp.StatusCode() != fiber.StatusOK {
+		return []models.DeviceInfo{}, apperrors.WrapError(apperrors.CodeInternal, "failed to get device info: non-200 response", nil)
+	}
+
+	type DeviceInfoResponse struct {
+		Devices []models.DeviceInfo `json:"devices"`
+	}
+
+	var deviceInfo DeviceInfoResponse
+	if err := json.Unmarshal(resp.Body(), &deviceInfo); err != nil {
+		return []models.DeviceInfo{}, apperrors.WrapError(apperrors.CodeInternal, "failed to parse device info response", err)
+	}
+
+	return deviceInfo.Devices, nil
 }

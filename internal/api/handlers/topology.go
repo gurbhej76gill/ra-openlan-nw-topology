@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -9,14 +10,17 @@ import (
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/services"
 )
 
-type TopologyHandler struct {
-	svc services.TopologyService
+type TopologyService interface {
+	BuildTopology(ctx context.Context, boardID string, Date *time.Time) (models.Topology, error)
 }
 
-func NewTopologyHandler(s services.TopologyService) *TopologyHandler {
+type TopologyHandler struct {
+	svc TopologyService
+}
+
+func NewTopologyHandler(s TopologyService) *TopologyHandler {
 	return &TopologyHandler{svc: s}
 }
 

@@ -58,12 +58,13 @@ type SSIDMetric struct {
 }
 
 type SSIDAssociation struct {
-	Connected int             `json:"connected"`
-	Inactive  int             `json:"inactive"`
-	RSSI      int             `json:"rssi"`
-	Station   string          `json:"station"`
-	RxRate    AssociationRate `json:"rx_rate"`
-	TxRate    AssociationRate `json:"tx_rate"`
+	Connected   int             `json:"connected"`
+	Inactive    int             `json:"inactive"`
+	RSSI        int             `json:"rssi"`
+	Station     string          `json:"station"`
+	RxRate      AssociationRate `json:"rx_rate"`
+	TxRate      AssociationRate `json:"tx_rate"`
+	Fingerprint map[string]any  `json:"fingerprint,omitempty"`
 }
 
 type AssociationRate struct {
@@ -75,6 +76,7 @@ type TimepointRequest struct {
 	BoardID        string  `json:"boardId"`
 	FromDate       *uint64 `json:"fromDate,omitempty"`
 	EndDate        *uint64 `json:"endDate,omitempty"`
+	Latest         bool    `json:"latest,omitempty"`
 	MaxRecords     *int    `json:"maxRecords,omitempty"`
 	StatsOnly      bool    `json:"statsOnly,omitempty"`
 	PointsOnly     bool    `json:"pointsOnly,omitempty"`

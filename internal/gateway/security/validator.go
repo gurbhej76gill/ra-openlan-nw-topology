@@ -8,26 +8,23 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
-	"github.com/router-architects/ra-openlan-nw-topology/adapters/httpclient"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
+	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/services/discovery"
 )
 
 // TokenValidator validates subscription tokens against an upstream security service.
-type TokenValidator interface {
-	Validate(ctx context.Context, token string) error
-}
 
 type owsecValidator struct {
 	store  *discovery.DiscoveryStore
-	client httpclient.OpenAPIRequestClient
+	client gateway.OpenAPIRequestClient
 }
 
 const (
 	owsecService = "owsec"
 )
 
-func NewTokenValidator(client httpclient.OpenAPIRequestClient, store *discovery.DiscoveryStore) TokenValidator {
+func NewTokenValidator(client gateway.OpenAPIRequestClient, store *discovery.DiscoveryStore) *owsecValidator {
 
 	return &owsecValidator{
 		store:  store,

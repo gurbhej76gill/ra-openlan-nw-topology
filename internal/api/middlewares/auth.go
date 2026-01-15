@@ -8,15 +8,18 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
-	"github.com/router-architects/ra-openlan-nw-topology/internal/gateway/security"
 )
+
+type TokenValidator interface {
+	Validate(ctx context.Context, token string) error
+}
 
 type TopologyAuthMiddleware struct {
 	APIKey         string
-	TokenValidator security.TokenValidator
+	TokenValidator TokenValidator
 }
 
-func NewTopologyAuthMiddleware(apiKey string, validator security.TokenValidator) *TopologyAuthMiddleware {
+func NewTopologyAuthMiddleware(apiKey string, validator TokenValidator) *TopologyAuthMiddleware {
 	return &TopologyAuthMiddleware{
 		APIKey:         apiKey,
 		TokenValidator: validator,

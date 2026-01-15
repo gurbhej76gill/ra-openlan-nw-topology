@@ -68,7 +68,7 @@ func main() {
 		OpenAPIRequestClient,
 		svcDiscoveryStore,
 	)
-	timepointClient := analytics.NewTimepointClient(OpenAPIRequestClient, svcDiscoveryStore)
+	analyticsClient := analytics.NewAnalyticsClient(OpenAPIRequestClient, svcDiscoveryStore)
 
 	lifecycleProducer, err := kafkaadapter.NewProducerForTopic(&cfg.Kafka, cfg.Kafka.KafkaTopicLifecycle)
 	if err != nil {
@@ -88,7 +88,7 @@ func main() {
 
 	lifecycleService := lifecycle.NewLifecycleService(&cfg.Lifecycle, lifecycleProducer)
 
-	svc := services.NewTopologyService(timepointClient)
+	svc := services.NewTopologyService(analyticsClient)
 
 	app := fiber.New(fiber.Config{
 		ReadTimeout:  time.Second * 10,

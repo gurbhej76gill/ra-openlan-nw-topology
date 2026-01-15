@@ -11,10 +11,11 @@ type Topology struct {
 
 // Device groups faces by device serial.
 type Device struct {
-	Serial string `json:"serial"`
-	Uptime int64  `json:"uptime"`
-	APs    []Face `json:"aps"`
-	Mesh   []Face `json:"mesh"`
+	Serial    string `json:"serial"`
+	Uptime    int64  `json:"uptime"`
+	APs       []Face `json:"aps"`
+	Mesh      []Face `json:"mesh"`
+	Connected bool   `json:"connected"`
 }
 
 // Face represents one BSSID on a band (AP or Mesh) at a specific sample timestamp.
@@ -37,6 +38,7 @@ type FaceClient struct {
 	RxRateBitrate int    `json:"rx_rate_bitrate"`
 	TxRateBitrate int    `json:"tx_rate_bitrate"`
 	RxRateChwidth int    `json:"rx_rate_chwidth"`
+	Fingerprint   string `json:"fingerprint,omitempty"`
 }
 
 type TopoEdges struct {
