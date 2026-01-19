@@ -290,6 +290,19 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, dat
 	for _, d := range devMap {
 		devs = append(devs, *d)
 	}
+
+	for _, m := range deviceIno {
+		if _, exists := devMap[m.SerialNumber]; !exists {
+			devs = append(devs, models.Device{
+				Uptime:    0,
+				Serial:    m.SerialNumber,
+				Connected: m.Connected,
+				APs:       []models.Face{},
+				Mesh:      []models.Face{},
+			})
+		}
+	}
+
 	sort.Slice(devs, func(i, j int) bool { return devs[i].Serial < devs[j].Serial })
 
 	meshEdges := make([]models.MeshEdge, 0, len(meshEdgeSet))
