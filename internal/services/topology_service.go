@@ -46,7 +46,7 @@ type faceOut struct {
 }
 
 // main method
-func (s *topologyService) BuildTopology(ctx context.Context, boardID string, date *time.Time) (models.Topology, error) {
+func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (models.Topology, error) {
 	log := logger.GetLoggerThreadId("SERVER")
 	if log != nil {
 		log = log.WithFields(logger.Fields{"boardId": boardID})
@@ -54,13 +54,8 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, dat
 
 	var fromDate uint64
 	var endDate uint64
-	if date == nil || date.IsZero() {
-		fromDate = uint64(time.Now().Add(-4 * time.Minute).Unix())
-		endDate = uint64(time.Now().Unix())
-	} else {
-		fromDate = uint64(date.Add(-60 * time.Minute).Unix())
-		endDate = uint64(date.Unix())
-	}
+	fromDate = uint64(time.Now().Add(-4 * time.Minute).Unix())
+	endDate = uint64(time.Now().Unix())
 
 	nowUnix := time.Now().Unix()
 	maxRecords := 1000
@@ -99,10 +94,20 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, dat
 		if log != nil {
 			log.Trace("no timepoint rows; returning empty topology")
 		}
+		dev := []models.Device{}
+		for _, m := range deviceIno {
+			dev = append(dev, models.Device{
+				Uptime:    0,
+				Serial:    m.SerialNumber,
+				Connected: m.Connected,
+				APs:       []models.Face{},
+				Mesh:      []models.Face{},
+			})
+		}
 		return models.Topology{
 			BoardID:   boardID,
 			Timestamp: time.Unix(nowUnix, 0).UTC().Format(time.RFC3339),
-			Nodes:     []models.Device{},
+			Nodes:     dev,
 			Edges:     models.TopoEdges{Wired: []any{}, Mesh: []models.MeshEdge{}},
 			External:  []any{},
 		}, nil
@@ -208,6 +213,8 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, dat
 							fingerprint = v
 						} else if v, ok := a.Fingerprint["os"].(string); ok && v != "" {
 							fingerprint = v
+						} else {
+							fingerprint = "unknown"
 						}
 					}
 

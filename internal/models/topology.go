@@ -2,19 +2,19 @@ package models
 
 // Topology is the response model shaped per your example.
 type Topology struct {
-	BoardID   string    `json:"boardId"`
-	Timestamp string    `json:"timestamp"` // RFC3339 UTC
-	Nodes     []Device  `json:"nodes"`
-	Edges     TopoEdges `json:"edges"`
-	External  []any     `json:"external"`
+	BoardID   string    `json:"boardId,omitempty"`
+	Timestamp string    `json:"timestamp,omitempty"` // RFC3339 UTC
+	Nodes     []Device  `json:"nodes,omitempty"`
+	Edges     TopoEdges `json:"edges,omitempty"`
+	External  []any     `json:"external,omitempty"`
 }
 
 // Device groups faces by device serial.
 type Device struct {
-	Serial    string `json:"serial"`
-	Uptime    int64  `json:"uptime"`
-	APs       []Face `json:"aps"`
-	Mesh      []Face `json:"mesh"`
+	Serial    string `json:"serial,omitempty"`
+	Uptime    int64  `json:"uptime,omitempty"`
+	APs       []Face `json:"aps,omitempty"`
+	Mesh      []Face `json:"mesh,omitempty"`
 	Connected bool   `json:"connected"`
 }
 
@@ -57,5 +57,4 @@ type MeshEdge struct {
 
 type TimepointsQuery struct {
 	BoardID string `query:"boardId"`
-	Date    string `query:"at"`
 }
