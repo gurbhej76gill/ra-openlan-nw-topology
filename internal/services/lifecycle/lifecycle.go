@@ -75,7 +75,7 @@ func (s *lifecycleService) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				s.safePublish(context.Background(), "leave")
+				s.safePublish(ctx, "leave")
 				return
 			case <-t.C:
 				s.safePublish(ctx, "keep-alive")

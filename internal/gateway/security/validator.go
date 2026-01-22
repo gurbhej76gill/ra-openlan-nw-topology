@@ -39,9 +39,6 @@ func (v *owsecValidator) Validate(ctx context.Context, rawToken string) error {
 		info := apperrors.GetHTTPErrorInfo(apperrors.CodeUnauthorized)
 		return apperrors.WrapError(apperrors.CodeUnauthorized, info.Description, nil)
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 
 	services := v.store.GetServices(owsecService)
 

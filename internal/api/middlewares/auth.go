@@ -54,7 +54,7 @@ func (t *TopologyAuthMiddleware) TopologyAuth(c fiber.Ctx) error {
 			subToken = strings.TrimSpace(subToken[len(bearerPrefix):])
 		}
 
-		if err := t.TokenValidator.Validate(context.Background(), subToken); err != nil {
+		if err := t.TokenValidator.Validate(c.Context(), subToken); err != nil {
 			if log != nil {
 				log.WithFields(logger.Fields{
 					"path":   c.Path(),
