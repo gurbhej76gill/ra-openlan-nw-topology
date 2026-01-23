@@ -133,8 +133,6 @@ func main() {
 	if err != nil {
 		log.WithError(err).Fatal("failed to start http server")
 	}
-
-	runCancel()
 	_ = app.Shutdown()
 	if consumer != nil {
 		_ = consumer.Close()
