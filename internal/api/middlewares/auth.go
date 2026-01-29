@@ -2,6 +2,8 @@ package middlewares
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -15,27 +17,27 @@ type TokenValidator interface {
 }
 
 type TopologyAuthMiddleware struct {
-	APIKey         string
+	PublicEndpoint string
 	TokenValidator TokenValidator
 }
 
-func NewTopologyAuthMiddleware(apiKey string, validator TokenValidator) *TopologyAuthMiddleware {
+func NewTopologyAuthMiddleware(publicEndPoint string, validator TokenValidator) *TopologyAuthMiddleware {
 	return &TopologyAuthMiddleware{
-		APIKey:         apiKey,
+		PublicEndpoint: publicEndPoint,
 		TokenValidator: validator,
 	}
 }
 
 func (t *TopologyAuthMiddleware) TopologyAuth(c fiber.Ctx) error {
 	log := logger.GetLoggerThreadId("SERVER")
-	if t.APIKey == "" {
-		fmt.Printf("apiKey name : %s\n", t.APIKey)
+	if t.PublicEndpoint == "" {
+		fmt.Printf("apiKey name : %s\n", t.PublicEndpoint)
 		return writeAuthError(c, apperrors.CodeUnauthorized)
 	}
 	got := string(c.Request().Header.Peek("X-API-KEY"))
 	internalHeader := c.Get("X-INTERNAL-NAME")
 	if internalHeader != "" {
-		if got == "" || got != t.APIKey {
+		if got == "" || got != sha256Hex(t.PublicEndpoint) {
 			return writeAuthError(c, apperrors.CodeUnauthorized)
 		}
 	} else {
@@ -82,4 +84,9 @@ func writeAuthError(c fiber.Ctx, code apperrors.ErrorCode) error {
 		"ErrorDetails":     c.Method(),
 	}
 	return c.Status(info.Status).JSON(body)
+}
+
+func sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
 }

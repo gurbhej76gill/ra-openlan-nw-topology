@@ -98,7 +98,7 @@ func main() {
 	th := handlers.NewTopologyHandler(svc)
 
 	authMiddleware := *middlewares.NewTopologyAuthMiddleware(
-		cfg.Middleware.APIKey,
+		cfg.Lifecycle.PublicEndpoint,
 		tokenValidator,
 	)
 

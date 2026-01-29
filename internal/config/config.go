@@ -38,22 +38,16 @@ type LifecycleConfig struct {
 	BuildVersion      string        `env:"BUILD_VERSION" envDefault:"dev"`
 }
 
-type MiddlewareConfig struct {
-	//middleware
-	APIKey string `env:"API_KEY" envDefault:"dev-secret-key"`
-}
-
 type LoggerConfig struct {
 	// logging
 	LogLevel string `env:"SYSTEM_LOG_LEVEL" envDefault:"trace"`
 }
 
 type Config struct {
-	Server     ServerConfig
-	Kafka      KafkaConfig
-	Lifecycle  LifecycleConfig
-	Middleware MiddlewareConfig
-	Logger     LoggerConfig
+	Server    ServerConfig
+	Kafka     KafkaConfig
+	Lifecycle LifecycleConfig
+	Logger    LoggerConfig
 }
 
 func Load() (*Config, error) {
