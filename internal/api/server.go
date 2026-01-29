@@ -22,6 +22,7 @@ type Server struct {
 	Crt            string
 	Key            string
 	Port           int
+	PrivatePort    int
 	AuthMiddleware middlewares.TopologyAuthMiddleware
 }
 
@@ -41,6 +42,7 @@ func New(cfg config.ServerConfig, authMiddleware middlewares.TopologyAuthMiddlew
 		Crt:            cfg.TLS_CERT,
 		Key:            cfg.TLS_KEY,
 		Port:           cfg.HTTPPort,
+		PrivatePort:    cfg.PrivatePort,
 		AuthMiddleware: authMiddleware,
 	}
 	return &server
@@ -86,6 +88,21 @@ func (s *Server) Start(app *fiber.App) error {
 	go func() {
 		if err := app.Listener(ln); err != nil {
 			log.WithError(err).Error("fiber listener stopped")
+		}
+	}()
+
+	privatePort := s.PrivatePort
+	privateAddr := fmt.Sprintf(":%d", privatePort)
+
+	lnPrivate, err := tls.Listen("tcp", privateAddr, tlsConfig)
+	if err != nil {
+		log.WithError(err).Fatal("failed to start private TLS listener on %s: %v", privateAddr, err)
+	}
+
+	// ---------- serve + graceful shutdown ----------
+	go func() {
+		if err := app.Listener(lnPrivate); err != nil {
+			log.WithError(err).Error("fiber private listener stopped")
 		}
 	}()
 

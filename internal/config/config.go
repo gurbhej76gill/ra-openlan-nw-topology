@@ -9,6 +9,7 @@ import (
 type ServerConfig struct {
 	// server
 	HTTPPort              int    `env:"HTTP_PORT" envDefault:"8088"`
+	PrivatePort           int    `env:"PRIVATE_HTTP_PORT" envDefault:"17007"`
 	TLS_CERT              string `env:"INTERNAL_RESTAPI_HOST_CERT"`
 	TLS_KEY               string `env:"INTERNAL_RESTAPI_HOST_KEY"`
 	TokenValidationCACert string `env:"INTERNAL_RESTAPI_HOST_ROOTCA"`
