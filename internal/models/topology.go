@@ -3,8 +3,10 @@ package models
 // Topology is the response model shaped per your example.
 type Topology struct {
 	BoardID   string    `json:"boardId,omitempty"`
+	VenueID   string    `json:"venueId,omitempty"`
 	Timestamp string    `json:"timestamp,omitempty"` // RFC3339 UTC
 	Nodes     []Device  `json:"nodes,omitempty"`
+	HistoricalDevices []string `json:"historicalDevices,omitempty"`
 	Edges     TopoEdges `json:"edges,omitempty"`
 	External  []any     `json:"external,omitempty"`
 }
@@ -57,4 +59,5 @@ type MeshEdge struct {
 
 type TimepointsQuery struct {
 	BoardID string `query:"boardId"`
+	VenueID string `query:"venue"`
 }

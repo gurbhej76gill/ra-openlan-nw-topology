@@ -12,7 +12,7 @@ import (
 )
 
 type TopologyService interface {
-	BuildTopology(ctx context.Context, boardID string) (models.Topology, error)
+	BuildTopology(ctx context.Context, boardID string, venueID string) (models.Topology, error)
 }
 
 type TopologyHandler struct {
@@ -39,7 +39,15 @@ func (h *TopologyHandler) GetTopology(c fiber.Ctx) error {
 		}
 		return writeErrorResponse(c, apperrors.CodeInvalidInput)
 	}
-	topo, err := h.svc.BuildTopology(c.Context(), params.BoardID)
+
+	if params.VenueID == "" {
+		if log != nil {
+			log.Warn("missing venue in topology query params")
+		}
+		return writeErrorResponse(c, apperrors.CodeInvalidInput)
+	}
+
+	topo, err := h.svc.BuildTopology(c.Context(), params.BoardID, params.VenueID)
 	if err != nil {
 		appErr, ok := err.(*apperrors.Error)
 		if !ok {
