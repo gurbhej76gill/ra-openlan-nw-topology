@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"math/rand"
 
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
@@ -285,6 +286,8 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, ven
 						RxRateBitrate: a.RxRate.Bitrate,
 						TxRateBitrate: a.TxRate.Bitrate,
 						RxRateChwidth: a.RxRate.Chwidth,
+						RxSpeed: rand.Intn(51),
+						TxSpeed: rand.Intn(51),
 						Fingerprint:   fingerprint,
 					})
 

@@ -39,6 +39,8 @@ type FaceClient struct {
 	Inactive      int    `json:"inactive"`
 	RxRateBitrate int    `json:"rx_rate_bitrate"`
 	TxRateBitrate int    `json:"tx_rate_bitrate"`
+	RxSpeed int `json:"rx_speed"`
+	TxSpeed int `json:"tx_speed"`
 	RxRateChwidth int    `json:"rx_rate_chwidth"`
 	Fingerprint   string `json:"fingerprint,omitempty"`
 }
