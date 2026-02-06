@@ -16,7 +16,7 @@ import (
 type AnalyticsClientInterface interface {
 	GetTimepoints(ctx context.Context, req models.TimepointRequest) ([]models.TimepointsData, error)
 	GetDeviceInfo(ctx context.Context, boardId string) ([]models.DeviceInfo, error)
-	GetWifiClientHistoryMACs(ctx context.Context, venueID string, limit, offset int) ([]string, error)
+	GetWifiClientHistoryMACs(ctx context.Context, boardId string, limit, offset int) ([]string, error)
 }
 
 type topologyService struct {
@@ -48,7 +48,7 @@ type faceOut struct {
 }
 
 // main method
-func (s *topologyService) BuildTopology(ctx context.Context, boardID string, venueID string) (models.Topology, error) {
+func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (models.Topology, error) {
 	log := logger.GetLoggerThreadId("SERVER")
 	if log != nil {
 		log = log.WithFields(logger.Fields{"boardId": boardID})
@@ -91,7 +91,7 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, ven
 		deviceInfoStatus[di.SerialNumber] = di.Connected
 	}
 
-	macs, err := s.client.GetWifiClientHistoryMACs(ctx, venueID, 500, 0)
+	macs, err := s.client.GetWifiClientHistoryMACs(ctx, boardID, 500, 0)
 	if err != nil {
 		log.WithError(err).Warn("failed to fetch wifi client history")
 	} else {
@@ -163,7 +163,6 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, ven
 		}
 		return models.Topology{
 			BoardID:   boardID,
-			VenueID:   venueID,
 			Timestamp: time.Unix(nowUnix, 0).UTC().Format(time.RFC3339),
 			Nodes:     dev,
 			HistoricalDevices:  dedupePreserveOrder(macsNorm),
@@ -396,7 +395,6 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string, ven
 	// 5) Final response
 	out := models.Topology{
 		BoardID:   boardID,
-		VenueID:   venueID,
 		Timestamp: time.Unix(nowUnix, 0).UTC().Format(time.RFC3339),
 		Nodes:     devs,
 		HistoricalDevices:  historical,

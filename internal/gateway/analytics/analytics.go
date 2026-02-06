@@ -160,16 +160,16 @@ func (v *analyticsClient) GetDeviceInfo(ctx context.Context, boardId string) ([]
 	return deviceInfo.Devices, nil
 }
 
-func (v *analyticsClient) GetWifiClientHistoryMACs(ctx context.Context, venueID string, limit, offset int) ([]string, error) {
+func (v *analyticsClient) GetWifiClientHistoryMACs(ctx context.Context, boardId string, limit, offset int) ([]string, error) {
 
 	fullURL := "/api/v1/wifiClientHistory" +
 		"?macsOnly=true" +
-		"&venue=" + url.QueryEscape(strings.TrimSpace(venueID)) +
+		"&boardId=" + url.QueryEscape(strings.TrimSpace(boardId)) +
 		"&limit=" + strconv.Itoa(limit) +
 		"&offset=" + strconv.Itoa(offset)
 
 	log := logger.GetLoggerThreadId("SERVER").WithFields(logger.Fields{
-		"venue":  venueID,
+		"boardId":  boardId,
 		"limit":  limit,
 		"offset": offset,
 	})
