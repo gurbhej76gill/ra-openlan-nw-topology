@@ -8,6 +8,7 @@ import (
 	"time"
 	"math/rand"
 
+	"github.com/router-architects/ra-openlan-nw-topology/adapters/apperrors"
 	"github.com/router-architects/ra-openlan-nw-topology/adapters/logger"
 	"github.com/router-architects/ra-openlan-nw-topology/internal/models"
 )
@@ -73,18 +74,32 @@ func (s *topologyService) BuildTopology(ctx context.Context, boardID string) (mo
 		PointStatsOnly: false,
 	})
 	if err != nil {
-		if log != nil {
-			log.WithError(err).Error("fetch timepoints failed")
+		if appErr, ok := err.(*apperrors.Error); ok && appErr.Code == apperrors.CodeNotFound {
+			if log != nil {
+				log.Trace("timepoints not found; treating as empty topology")
+			}
+			rows = nil
+		} else {
+			if log != nil {
+				log.WithError(err).Error("fetch timepoints failed")
+			}
+			return models.Topology{}, err
 		}
-		return models.Topology{}, err
 	}
 
 	deviceIno, err := s.client.GetDeviceInfo(ctx, boardID)
 	if err != nil {
-		if log != nil {
-			log.WithError(err).Error("fetch device info failed")
+		if appErr, ok := err.(*apperrors.Error); ok && appErr.Code == apperrors.CodeNotFound {
+			if log != nil {
+				log.Trace("device info not found; treating as empty devices list")
+			}
+			deviceIno = nil
+		} else {
+			if log != nil {
+				log.WithError(err).Error("fetch device info failed")
+			}
+			return models.Topology{}, err
 		}
-		return models.Topology{}, err
 	}
 	deviceInfoStatus := make(map[string]bool)
 	for _, di := range deviceIno {
